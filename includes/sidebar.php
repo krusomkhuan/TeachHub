@@ -35,7 +35,6 @@ $menus = [
         ],
         'ตรวจงานที่ส่ง' => [
             ['โครงการสอน/แผนการสอน', 'admin/lesson_plans.php', 'bi-journal-text'],
-            ['ข้อตกลง PA', 'admin/pa.php', 'bi-clipboard-check'],
             ['วิจัยในชั้นเรียน', 'admin/research.php', 'bi-search'],
             ['ประเมินแผนการจัดการเรียนรู้', 'review/plan_evaluations.php', 'bi-clipboard-data'],
             ['รายการแบบประเมินแผนฯ', 'admin/plan_eval_criteria.php', 'bi-list-check'],
@@ -77,7 +76,6 @@ $menus = [
         ],
         'ตรวจงานในแผนก' => [
             ['โครงการสอน/แผนการสอน', 'supervisor/lesson_plans.php', 'bi-journal-text'],
-            ['ข้อตกลง PA', 'supervisor/pa.php', 'bi-clipboard-check'],
             ['วิจัยในชั้นเรียน', 'supervisor/research.php', 'bi-search'],
             ['ประเมินแผนการจัดการเรียนรู้', 'review/plan_evaluations.php', 'bi-clipboard-data'],
         ],
@@ -89,7 +87,6 @@ $menus = [
         'งานของฉัน' => [
             ['รายวิชาที่สอน', 'teacher/teaching_subjects.php', 'bi-book'],
             ['ส่งโครงการสอน/แผนการสอน', 'teacher/lesson_plans.php', 'bi-upload'],
-            ['ส่ง PA', 'teacher/pa.php', 'bi-upload'],
             ['ส่งวิจัย', 'teacher/research.php', 'bi-upload'],
             ['ผลการนิเทศของฉัน', 'teacher/supervision.php', 'bi-person-badge'],
             ['ผลประเมินแผนของฉัน', 'teacher/plan_evaluations.php', 'bi-clipboard-data'],
@@ -107,7 +104,6 @@ $menus = [
         'ส่งงาน' => [
             ['รายวิชาที่สอน', 'teacher/teaching_subjects.php', 'bi-book'],
             ['โครงการสอน/แผนการจัดการเรียนรู้', 'teacher/lesson_plans.php', 'bi-journal-text'],
-            ['ข้อตกลง PA', 'teacher/pa.php', 'bi-clipboard-check'],
             ['วิจัยในชั้นเรียน', 'teacher/research.php', 'bi-search'],
         ],
         'นิเทศการสอน' => [
@@ -139,9 +135,10 @@ $menus = [
 $roleMenu = $menus[$user['role']] ?? [];
 
 // ครูที่เป็นผู้ตรวจตามตำแหน่ง: เพิ่มเมนูตรวจงานทุกแผนก (+ จำนวนรอตรวจ)
-if ($user['role'] === 'teacher' && ($reviewTypes = designated_review_types($user))) {
+// (ไม่แสดงเมนูตรวจ PA — ปิดระบบ PA จากเมนูแล้ว)
+if ($user['role'] === 'teacher' && ($reviewTypes = array_values(array_diff(designated_review_types($user), ['pa'])))) {
     $reviewMenu = [];
-    $reviewLabels = ['lesson_plan' => 'โครงการสอน/แผนการสอน', 'pa' => 'ข้อตกลง PA', 'research' => 'วิจัยในชั้นเรียน'];
+    $reviewLabels = ['lesson_plan' => 'โครงการสอน/แผนการสอน', 'research' => 'วิจัยในชั้นเรียน'];
     foreach ($reviewTypes as $rt) {
         $path = review_page('teacher', $rt);
         $reviewMenu[] = [$reviewLabels[$rt], $path, submission_type_icon($rt)];

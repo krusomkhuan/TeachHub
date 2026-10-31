@@ -23,8 +23,9 @@ $pendingUsers = db_all(
 );
 $resetRequests = (int)db_value("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'pending'");
 $summary = stat_status_summary($ayId);
-$pendingReviews = $summary['lesson_plan']['pending'] + $summary['pa']['pending'] + $summary['research']['pending'];
-$rounds = active_rounds();
+unset($summary['pa']); // ปิดระบบ PA: ไม่นับ/ไม่แสดงในแดชบอร์ด
+$pendingReviews = $summary['lesson_plan']['pending'] + $summary['research']['pending'];
+$rounds = array_values(array_filter(active_rounds(), fn($r) => $r['type'] !== 'pa'));
 $supStats = db_one(
     "SELECT COUNT(*) AS total, COALESCE(SUM(status = 'completed'), 0) AS done
      FROM supervision_schedules WHERE (? = 0 OR academic_year_id = ?) AND status <> 'cancelled'",
@@ -76,7 +77,7 @@ require APP_ROOT . '/includes/header.php';
         <div class="stat-card">
             <div class="stat-icon ic-yellow"><i class="bi bi-hourglass-split"></i></div>
             <div><div class="stat-value"><?= $pendingReviews ?></div><div class="stat-label">งานรอตรวจ</div>
-                <div class="stat-sub">แผน <?= $summary['lesson_plan']['pending'] ?> · PA <?= $summary['pa']['pending'] ?> · วิจัย <?= $summary['research']['pending'] ?></div></div>
+                <div class="stat-sub">แผน <?= $summary['lesson_plan']['pending'] ?> · วิจัย <?= $summary['research']['pending'] ?></div></div>
         </div>
     </div>
     <div class="col-sm-6 col-xl">
@@ -200,11 +201,10 @@ require APP_ROOT . '/includes/header.php';
 </div>
 
 <?php
-$deptChart = ['labels' => [], 'lp' => [], 'pa' => [], 'rs' => []];
+$deptChart = ['labels' => [], 'lp' => [], 'rs' => []];
 foreach ($deptStats as $d) {
     $deptChart['labels'][] = preg_replace('/^แผนกวิชา/u', '', $d['name']);
     $deptChart['lp'][] = percent((int)$d['lesson_plan'], (int)$d['teachers']);
-    $deptChart['pa'][] = percent((int)$d['pa'], (int)$d['teachers']);
     $deptChart['rs'][] = percent((int)$d['research'], (int)$d['teachers']);
 }
 $statusTotals = [
@@ -218,7 +218,6 @@ $pageScripts = 'document.addEventListener("DOMContentLoaded", function () {
         type: "bar",
         data: { labels: d.labels, datasets: [
             { label: "แผนการสอน", data: d.lp, backgroundColor: p[0], borderRadius: 4 },
-            { label: "PA", data: d.pa, backgroundColor: p[1], borderRadius: 4 },
             { label: "วิจัย", data: d.rs, backgroundColor: p[2], borderRadius: 4 }
         ]},
         options: { scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function (v) { return v + "%"; } } } },

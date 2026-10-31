@@ -25,6 +25,7 @@ if (!$ay) {
 // ---------- ข้อมูล ----------
 $teacherCount = (int)db_value("SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')");
 $summary = stat_status_summary($ayId);
+unset($summary['pa']); // ปิดระบบ PA: ไม่แสดงในแดชบอร์ด
 $deptStats = stat_department_submission($ayId);
 $supDept = stat_supervision_by_department($ayId);
 $supAll = db_one(
@@ -36,7 +37,7 @@ $supAll = db_one(
 );
 
 // ร้อยละครูที่ส่งแล้ว (ทั้งวิทยาลัย) แยกประเภท
-$sentTeachers = ['lesson_plan' => 0, 'pa' => 0, 'research' => 0];
+$sentTeachers = ['lesson_plan' => 0, 'research' => 0];
 foreach ($deptStats as $d) {
     foreach ($sentTeachers as $k => $v) {
         $sentTeachers[$k] += (int)$d[$k];
@@ -70,7 +71,7 @@ require APP_ROOT . '/includes/header.php';
         </div>
     </div>
     <?php
-    $cards = ['lesson_plan' => ['ic-blue', 'ส่งแผนการสอน'], 'pa' => ['ic-orange', 'ส่ง PA'], 'research' => ['ic-green', 'ส่งวิจัย']];
+    $cards = ['lesson_plan' => ['ic-blue', 'ส่งแผนการสอน'], 'research' => ['ic-green', 'ส่งวิจัย']];
     foreach ($cards as $t => [$ic, $label]): $pct = percent($sentTeachers[$t], $teacherCount); ?>
         <div class="col-sm-6 col-xl">
             <div class="stat-card">
@@ -134,11 +135,10 @@ require APP_ROOT . '/includes/header.php';
 </div>
 
 <?php
-$deptChart = ['labels' => [], 'lp' => [], 'pa' => [], 'rs' => []];
+$deptChart = ['labels' => [], 'lp' => [], 'rs' => []];
 foreach ($deptStats as $d) {
     $deptChart['labels'][] = preg_replace('/^แผนกวิชา/u', '', $d['name']);
     $deptChart['lp'][] = percent((int)$d['lesson_plan'], (int)$d['teachers']);
-    $deptChart['pa'][] = percent((int)$d['pa'], (int)$d['teachers']);
     $deptChart['rs'][] = percent((int)$d['research'], (int)$d['teachers']);
 }
 $supChart = ['labels' => [], 'avg' => []];
@@ -152,7 +152,6 @@ $pageScripts = 'document.addEventListener("DOMContentLoaded", function () {
         type: "bar",
         data: { labels: d.labels, datasets: [
             { label: "แผนการสอน", data: d.lp, backgroundColor: p[0], borderRadius: 4 },
-            { label: "PA", data: d.pa, backgroundColor: p[1], borderRadius: 4 },
             { label: "วิจัย", data: d.rs, backgroundColor: p[2], borderRadius: 4 }
         ]},
         options: { scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function (v) { return v + "%"; } } } } }

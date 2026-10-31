@@ -18,7 +18,7 @@ $deptTeachers = (int)db_value(
     [$deptId]
 );
 $summary = stat_status_summary($ayId, $deptId);
-$pendingTotal = $summary['lesson_plan']['pending'] + $summary['pa']['pending'] + $summary['research']['pending'];
+$pendingTotal = $summary['lesson_plan']['pending'] + $summary['research']['pending']; // ไม่นับ PA (ปิดระบบ PA)
 
 $mySchedules = db_all(
     "SELECT sc.*, CONCAT(t.prefix, t.first_name, ' ', t.last_name) AS teacher_name
@@ -41,28 +41,23 @@ $pendingList = db_all(
        FROM lesson_plans s JOIN users u ON u.id = s.teacher_id
       WHERE u.department_id = ? AND s.status = 'pending'
      UNION ALL
-     SELECT 'pa', s.id, CONCAT('PA ปีงบประมาณ ', s.fiscal_year), s.submitted_at, s.is_late,
-            CONCAT(u.prefix, u.first_name, ' ', u.last_name)
-       FROM pa_submissions s JOIN users u ON u.id = s.teacher_id
-      WHERE u.department_id = ? AND s.status = 'pending'
-     UNION ALL
      SELECT 'research', s.id, s.title, s.submitted_at, s.is_late,
             CONCAT(u.prefix, u.first_name, ' ', u.last_name)
        FROM research_submissions s JOIN users u ON u.id = s.teacher_id
       WHERE u.department_id = ? AND s.status = 'pending'
      ORDER BY submitted_at ASC LIMIT 10",
-    'iii',
-    [$deptId, $deptId, $deptId]
+    'ii',
+    [$deptId, $deptId]
 );
 
 // ---------- ความคืบหน้ารอบที่เปิดอยู่ (เฉพาะแผนก) ----------
-$rounds = active_rounds();
+$rounds = array_values(array_filter(active_rounds(), fn($r) => $r['type'] !== 'pa'));
 $progress = [];
 foreach ($rounds as $r) {
     $progress[] = ['round' => $r, 'p' => stat_round_progress($r, $deptId)];
 }
 
-$reviewPage = ['lesson_plan' => 'supervisor/lesson_plans.php', 'pa' => 'supervisor/pa.php', 'research' => 'supervisor/research.php'];
+$reviewPage = ['lesson_plan' => 'supervisor/lesson_plans.php', 'research' => 'supervisor/research.php'];
 
 $pageTitle = 'แดชบอร์ดหัวหน้าแผนก';
 $pageIcon = 'bi-speedometer2';
@@ -91,13 +86,13 @@ require APP_ROOT . '/includes/header.php';
         <div class="stat-card">
             <div class="stat-icon ic-yellow"><i class="bi bi-hourglass-split"></i></div>
             <div><div class="stat-value"><?= $pendingTotal ?></div><div class="stat-label">งานรอตรวจ</div>
-                <div class="stat-sub">แผน <?= $summary['lesson_plan']['pending'] ?> · PA <?= $summary['pa']['pending'] ?> · วิจัย <?= $summary['research']['pending'] ?></div></div>
+                <div class="stat-sub">แผน <?= $summary['lesson_plan']['pending'] ?> · วิจัย <?= $summary['research']['pending'] ?></div></div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
         <div class="stat-card">
             <div class="stat-icon ic-green"><i class="bi bi-check2-circle"></i></div>
-            <div><div class="stat-value"><?= $summary['lesson_plan']['approved'] + $summary['pa']['approved'] + $summary['research']['approved'] ?></div>
+            <div><div class="stat-value"><?= $summary['lesson_plan']['approved'] + $summary['research']['approved'] ?></div>
                 <div class="stat-label">งานที่ผ่านแล้ว (ภาคเรียนนี้)</div></div>
         </div>
     </div>
@@ -203,10 +198,10 @@ require APP_ROOT . '/includes/header.php';
 
 <?php
 $chart = [
-    'labels'   => ['แผนการสอน', 'PA', 'วิจัย'],
-    'pending'  => [$summary['lesson_plan']['pending'], $summary['pa']['pending'], $summary['research']['pending']],
-    'approved' => [$summary['lesson_plan']['approved'], $summary['pa']['approved'], $summary['research']['approved']],
-    'revision' => [$summary['lesson_plan']['revision'], $summary['pa']['revision'], $summary['research']['revision']],
+    'labels'   => ['แผนการสอน', 'วิจัย'],
+    'pending'  => [$summary['lesson_plan']['pending'], $summary['research']['pending']],
+    'approved' => [$summary['lesson_plan']['approved'], $summary['research']['approved']],
+    'revision' => [$summary['lesson_plan']['revision'], $summary['research']['revision']],
 ];
 $pageScripts = 'document.addEventListener("DOMContentLoaded", function () {
     var d = ' . json_encode($chart, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ', c = TeachHub.statusColors;

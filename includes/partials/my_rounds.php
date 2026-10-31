@@ -6,7 +6,7 @@
  * - งานที่เหลือเวลาน้อยกว่า 3 วันและยังไม่ส่ง แสดงเป็นสีแดง
  * ต้องมีตัวแปร $user
  */
-$myRounds = active_rounds();
+$myRounds = array_values(array_filter(active_rounds(), fn($r) => $r['type'] !== 'pa')); // ไม่แสดงรอบ PA (ปิดระบบ PA)
 ?>
 <div class="card h-100">
     <div class="card-header d-flex align-items-center">

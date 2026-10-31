@@ -23,7 +23,7 @@ $teacherCount = (int)db_value(
 // ---------- รอบที่เปิดรับ / กำลังจะเปิด ----------
 $rounds = db_all(
     "SELECT * FROM submission_rounds
-     WHERE is_active = 1 AND (close_at >= NOW() OR (allow_late = 1 AND close_at >= NOW() - INTERVAL 30 DAY))
+     WHERE is_active = 1 AND type <> 'pa' AND (close_at >= NOW() OR (allow_late = 1 AND close_at >= NOW() - INTERVAL 30 DAY))
      ORDER BY (open_at > NOW()), close_at ASC
      LIMIT 6"
 );
@@ -84,12 +84,11 @@ require APP_ROOT . '/includes/public_header.php';
         <?php
         $cards = [
             'lesson_plan' => ['ic-navy', 'แผนการจัดการเรียนรู้'],
-            'pa'          => ['ic-orange', 'ข้อตกลง PA'],
             'research'    => ['ic-green', 'วิจัยในชั้นเรียน'],
             'supervision' => ['ic-purple', 'นิเทศการสอน'],
         ];
         foreach ($cards as $t => [$ic, $label]): ?>
-            <div class="col-6 col-lg-3">
+            <div class="col-6 col-lg-4">
                 <div class="stat-card">
                     <div class="stat-icon <?= $ic ?>"><i class="bi <?= e(submission_type_icon($t)) ?>"></i></div>
                     <div>
@@ -217,9 +216,9 @@ require APP_ROOT . '/includes/public_header.php';
 
 <?php
 $chartData = [
-    'labels'   => ['แผนการสอน', 'PA', 'วิจัยในชั้นเรียน', 'นิเทศการสอน'],
-    'total'    => [$stats['lesson_plan']['total'], $stats['pa']['total'], $stats['research']['total'], $stats['supervision']['total']],
-    'approved' => [$stats['lesson_plan']['approved'], $stats['pa']['approved'], $stats['research']['approved'], $stats['supervision']['approved']],
+    'labels'   => ['แผนการสอน', 'วิจัยในชั้นเรียน', 'นิเทศการสอน'],
+    'total'    => [$stats['lesson_plan']['total'], $stats['research']['total'], $stats['supervision']['total']],
+    'approved' => [$stats['lesson_plan']['approved'], $stats['research']['approved'], $stats['supervision']['approved']],
 ];
 $pageScripts = 'document.addEventListener("DOMContentLoaded", function () {
     var d = ' . json_encode($chartData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';

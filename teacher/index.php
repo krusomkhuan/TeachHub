@@ -47,14 +47,11 @@ $revisions = db_all(
     "SELECT 'lesson_plan' AS type, id, CONCAT(subject_code, ' ', subject_name) AS title, updated_at, submitted_at
        FROM lesson_plans WHERE teacher_id = ? AND status = 'revision'
      UNION ALL
-     SELECT 'pa', id, CONCAT('PA ปีงบประมาณ ', fiscal_year, IF(phase = 'agreement', ' (ข้อตกลง)', ' (รายงานผล)')), updated_at, submitted_at
-       FROM pa_submissions WHERE teacher_id = ? AND status = 'revision'
-     UNION ALL
      SELECT 'research', id, title, updated_at, submitted_at
        FROM research_submissions WHERE teacher_id = ? AND status = 'revision'
      ORDER BY COALESCE(updated_at, submitted_at) DESC",
-    'iii',
-    [$uid, $uid, $uid]
+    'ii',
+    [$uid, $uid]
 );
 
 // ---------- ตารางนิเทศที่กำลังจะถึง ----------
@@ -106,11 +103,10 @@ require APP_ROOT . '/includes/header.php';
     <?php
     $cards = [
         'lesson_plan' => ['ic-navy', 'แผนการสอนที่ส่ง', 'teacher/lesson_plans.php'],
-        'pa'          => ['ic-orange', 'PA ที่ส่ง', 'teacher/pa.php'],
         'research'    => ['ic-green', 'วิจัยที่ส่ง', 'teacher/research.php'],
     ];
     foreach ($cards as $t => [$ic, $label, $link]): $s = $summary[$t]; ?>
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl-4">
             <a href="<?= e(url($link)) ?>" class="stat-card">
                 <div class="stat-icon <?= $ic ?>"><i class="bi <?= e(submission_type_icon($t)) ?>"></i></div>
                 <div>
@@ -125,7 +121,7 @@ require APP_ROOT . '/includes/header.php';
             </a>
         </div>
     <?php endforeach; ?>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-sm-6 col-xl-4">
         <a href="<?= e(url('teacher/supervision.php')) ?>" class="stat-card">
             <div class="stat-icon ic-purple"><i class="bi bi-person-video3"></i></div>
             <div>
