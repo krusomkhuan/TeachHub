@@ -73,8 +73,9 @@ $navItems = [
                     </li>
                 <?php endforeach; ?>
             </ul>
-            <?php // ผู้ที่เข้าระบบแล้วไม่แสดงปุ่มในแถบเมนูนี้ / ผู้ที่ยังไม่เข้าระบบแสดงปุ่มเข้าสู่ระบบ-สมัครสมาชิก ?>
-            <?php if (!$viewer): ?>
+            <?php // ผู้ที่เข้าระบบแล้วไม่แสดงปุ่มในแถบเมนูนี้ / ผู้ที่ยังไม่เข้าระบบแสดงปุ่มเข้าสู่ระบบ-สมัครสมาชิก
+                  // หน้าแรกมีปุ่มนี้ใน Hero อยู่แล้ว จึงไม่แสดงซ้ำในแถบเมนู ?>
+            <?php if (!$viewer && $activeNav !== 'home'): ?>
                 <div class="d-flex gap-2 ms-xl-3 pb-2 pb-xl-0">
                     <a href="<?= e(url('auth/login.php')) ?>" class="btn btn-accent btn-sm px-3"><i class="bi bi-box-arrow-in-right me-1"></i> เข้าสู่ระบบ</a>
                     <?php if (setting('allow_register', '1') === '1'): ?>
