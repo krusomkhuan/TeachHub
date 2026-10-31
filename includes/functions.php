@@ -4,6 +4,26 @@
  * ฟังก์ชันกลางที่ใช้ทั้งระบบ: ฐานข้อมูล, ความปลอดภัย, วันที่ภาษาไทย, อัปโหลดไฟล์, ป้ายสถานะ ฯลฯ
  */
 
+// ---------- ฟังก์ชันของ PHP 8 สำหรับโฮสต์ที่ยังเป็น PHP 7 ----------
+if (!function_exists('str_starts_with')) {
+    function str_starts_with(string $haystack, string $needle): bool
+    {
+        return strncmp($haystack, $needle, strlen($needle)) === 0;
+    }
+}
+if (!function_exists('str_ends_with')) {
+    function str_ends_with(string $haystack, string $needle): bool
+    {
+        return $needle === '' || substr($haystack, -strlen($needle)) === $needle;
+    }
+}
+if (!function_exists('str_contains')) {
+    function str_contains(string $haystack, string $needle): bool
+    {
+        return $needle === '' || strpos($haystack, $needle) !== false;
+    }
+}
+
 // =====================================================================
 // 1) ฟังก์ชันฐานข้อมูล (ใช้ Prepared Statements ทุกคำสั่ง)
 // =====================================================================

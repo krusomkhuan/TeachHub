@@ -145,14 +145,20 @@ if (is_post()) {
                 $credit = $r[2] ?? '';
                 $level = rtrim($r[3] ?? '', '.') . '.';
                 $deptId = $deptMap[mb_strtolower($r[4] ?? '')] ?? 0;
-                $problem = match (true) {
-                    !preg_match('/^[A-Z0-9-]{2,20}$/', $code) => 'รหัสวิชาไม่ถูกต้อง',
-                    $name === ''                              => 'ไม่มีชื่อวิชา',
-                    $credit !== '' && !preg_match('/^\d{1,2}-\d{1,2}-\d{1,2}$/', $credit) => 'ท-ป-น ไม่ถูกต้อง (' . $credit . ')',
-                    !in_array($level, ['ปวช.', 'ปวส.'], true) => 'ระดับชั้นต้องเป็น ปวช. หรือ ปวส.',
-                    $deptId === 0                             => 'ไม่พบแผนก "' . ($r[4] ?? '') . '"',
-                    default                                   => null,
-                };
+                // (ไม่ใช้ match เพื่อให้รันบน PHP 7 ได้)
+                if (!preg_match('/^[A-Z0-9-]{2,20}$/', $code)) {
+                    $problem = 'รหัสวิชาไม่ถูกต้อง';
+                } elseif ($name === '') {
+                    $problem = 'ไม่มีชื่อวิชา';
+                } elseif ($credit !== '' && !preg_match('/^\d{1,2}-\d{1,2}-\d{1,2}$/', $credit)) {
+                    $problem = 'ท-ป-น ไม่ถูกต้อง (' . $credit . ')';
+                } elseif (!in_array($level, ['ปวช.', 'ปวส.'], true)) {
+                    $problem = 'ระดับชั้นต้องเป็น ปวช. หรือ ปวส.';
+                } elseif ($deptId === 0) {
+                    $problem = 'ไม่พบแผนก "' . ($r[4] ?? '') . '"';
+                } else {
+                    $problem = null;
+                }
                 if ($problem) {
                     $rowErrors[] = 'แถว ' . $line . ($code !== '' ? ' (' . $code . ')' : '') . ': ' . $problem;
                     continue;
