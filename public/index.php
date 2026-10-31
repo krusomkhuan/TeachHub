@@ -12,6 +12,11 @@ foreach (submission_types() as $t) {
     $row = db_one("SELECT COUNT(*) AS total, SUM(status = 'approved') AS approved FROM `$table`");
     $stats[$t] = ['total' => (int)$row['total'], 'approved' => (int)$row['approved']];
 }
+// แยกโครงการสอน (doc_type = outline) ออกจากแผนการจัดการเรียนรู้ (plan)
+foreach (['outline', 'plan'] as $dt) {
+    $row = db_one("SELECT COUNT(*) AS total, SUM(status = 'approved') AS approved FROM lesson_plans WHERE doc_type = ?", 's', [$dt]);
+    $stats[$dt === 'plan' ? 'lesson_plan' : 'outline'] = ['total' => (int)$row['total'], 'approved' => (int)$row['approved']];
+}
 $stats['supervision'] = [
     'total'    => (int)db_value('SELECT COUNT(*) FROM supervision_results'),
     'approved' => (int)db_value('SELECT COUNT(*) FROM supervision_results WHERE acknowledged_at IS NOT NULL'),
@@ -83,14 +88,15 @@ require APP_ROOT . '/includes/public_header.php';
     <div class="row g-3 hero-stats">
         <?php
         $cards = [
-            'lesson_plan' => ['ic-navy', 'แผนการจัดการเรียนรู้'],
-            'research'    => ['ic-green', 'วิจัยในชั้นเรียน'],
-            'supervision' => ['ic-purple', 'นิเทศการสอน'],
+            'outline'     => ['ic-orange', 'โครงการสอน', 'bi-journal-bookmark'],
+            'lesson_plan' => ['ic-navy', 'แผนการจัดการเรียนรู้', submission_type_icon('lesson_plan')],
+            'research'    => ['ic-green', 'วิจัยในชั้นเรียน', submission_type_icon('research')],
+            'supervision' => ['ic-purple', 'นิเทศการสอน', submission_type_icon('supervision')],
         ];
-        foreach ($cards as $t => [$ic, $label]): ?>
-            <div class="col-6 col-lg-4">
+        foreach ($cards as $t => [$ic, $label, $icon]): ?>
+            <div class="col-6 col-lg-3">
                 <div class="stat-card">
-                    <div class="stat-icon <?= $ic ?>"><i class="bi <?= e(submission_type_icon($t)) ?>"></i></div>
+                    <div class="stat-icon <?= $ic ?>"><i class="bi <?= e($icon) ?>"></i></div>
                     <div>
                         <div class="stat-value"><?= number_format($stats[$t]['total']) ?></div>
                         <div class="stat-label"><?= e($label) ?></div>
@@ -216,9 +222,9 @@ require APP_ROOT . '/includes/public_header.php';
 
 <?php
 $chartData = [
-    'labels'   => ['แผนการสอน', 'วิจัยในชั้นเรียน', 'นิเทศการสอน'],
-    'total'    => [$stats['lesson_plan']['total'], $stats['research']['total'], $stats['supervision']['total']],
-    'approved' => [$stats['lesson_plan']['approved'], $stats['research']['approved'], $stats['supervision']['approved']],
+    'labels'   => ['โครงการสอน', 'แผนการสอน', 'วิจัยในชั้นเรียน', 'นิเทศการสอน'],
+    'total'    => [$stats['outline']['total'], $stats['lesson_plan']['total'], $stats['research']['total'], $stats['supervision']['total']],
+    'approved' => [$stats['outline']['approved'], $stats['lesson_plan']['approved'], $stats['research']['approved'], $stats['supervision']['approved']],
 ];
 $pageScripts = 'document.addEventListener("DOMContentLoaded", function () {
     var d = ' . json_encode($chartData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';
