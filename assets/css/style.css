@@ -393,6 +393,17 @@ a.stat-card:hover { transform: translateY(-3px); color: inherit; }
     object-fit: contain;
     box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
 }
+/* จำกัดความสูงไม่เกินฝั่งข้อความ เพื่อไม่ให้แบนเนอร์สูงขึ้น */
+.hero-photo {
+    display: block;
+    width: auto; height: auto;
+    max-width: 100%; max-height: 150px;
+    margin-left: auto;
+    /* ไม่มีขอบ: ไล่ขอบภาพให้จางหายไปกับพื้น Hero */
+    -webkit-mask-image: radial-gradient(ellipse at center, #000 45%, transparent 75%);
+    mask-image: radial-gradient(ellipse at center, #000 45%, transparent 75%);
+    opacity: .92;
+}
 .hero h1 { font-size: 3rem; font-weight: 700; }
 .hero .slogan { color: #ffd2ad; font-size: 1.35rem; font-weight: 500; }
 .hero-stats { margin-top: -3.5rem; position: relative; z-index: 2; }

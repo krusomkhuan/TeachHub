@@ -79,6 +79,13 @@ require APP_ROOT . '/includes/public_header.php';
                     <?php endif; ?>
                 </div>
             </div>
+            <?php // ภาพประกอบ Hero: วางไฟล์ไว้ที่ assets/img/hero-classroom.png (ไม่มีไฟล์ = ไม่แสดง) ?>
+            <?php if (is_file(APP_ROOT . '/assets/img/hero-classroom.png')): ?>
+                <div class="col-lg-5 d-none d-md-block">
+                    <img src="<?= e(url('assets/img/hero-classroom.png')) ?>" alt="ครูกำลังสอนในห้องคอมพิวเตอร์ยุค AI"
+                         class="hero-photo" width="199" height="149" fetchpriority="high">
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </section>
