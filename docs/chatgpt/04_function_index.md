@@ -1,0 +1,505 @@
+# TeachHub PT — ดัชนีฟังก์ชันกลาง (includes/*.php)
+
+สร้างอัตโนมัติ เวอร์ชัน 1.21.0 · 2026-10-25 · ใช้ฟังก์ชันเหล่านี้ก่อนเขียนใหม่ · คำอธิบายมาจาก docblock บรรทัดแรก
+
+## includes/admin_perm.php
+- `admin_permission_groups(): array` — รายการสิทธิ์: [กลุ่ม => [รหัสสิทธิ์ => [ชื่อสิทธิ์, [หน้าที่ใช้สิทธิ์นี้], หน้าเสี่ยง]]]
+- `admin_permission_list(): array` — รหัสสิทธิ์ทั้งหมด => [ชื่อ, หน้า, หน้าเสี่ยง]
+- `admin_permission_presets(): array` — แม่แบบสิทธิ์ (ใช้ติ๊กให้อัตโนมัติในหน้าแก้ไขผู้ใช้ — ไม่เก็บในฐานข้อมูล)
+- `admin_permission_pages(): array` — หน้า (path จาก root ของระบบ เช่น admin/users.php) => รหัสสิทธิ์
+- `admin_perm_column_ready(): bool` — ฐานข้อมูลมีคอลัมน์ users.admin_permissions แล้วหรือยัง (นำเข้า update_v1.17.sql)
+- `admin_permissions_of(array $user): ?array` — รหัสสิทธิ์ของผู้ใช้ (null = ผู้ดูแลระบบเต็มสิทธิ์ / ไม่ใช่ admin = [])
+- `is_full_admin(array $user): bool` — ผู้ดูแลระบบเต็มสิทธิ์
+- `is_limited_admin(array $user): bool` — เจ้าหน้าที่ดูแลระบบ (role admin ที่ถูกจำกัดสิทธิ์)
+- `admin_can(array $user, string $perm): bool` — ผู้ใช้ (role admin) ใช้สิทธิ์นี้ได้หรือไม่ — role อื่นได้ false เสมอ
+- `admin_can_path(array $user, string $path): bool` — สิทธิ์ที่ใช้เปิดหน้า (path) นี้ได้ — หน้าที่ไม่มีในรายการ: แดชบอร์ด/หน้านอก admin/ = ได้, หน้าอื่นใน admin/ = ไม่ได้
+- `current_script_path(): string` — path ของหน้าปัจจุบันเทียบกับ root ของระบบ เช่น admin/users.php
+- `admin_perm_enforce(array $user): void` — ตรวจสิทธิ์เจ้าหน้าที่ดูแลระบบกับหน้าปัจจุบัน (เรียกจาก require_login ทุกหน้าหลังบ้าน)
+- `user_role_label(array $user): string` — ชื่อสิทธิ์สำหรับแสดงผล (แยกผู้ดูแลระบบเต็มสิทธิ์ / เจ้าหน้าที่ดูแลระบบ)
+- `full_admin_count(int $excludeId = 0): int` — จำนวนผู้ดูแลระบบเต็มสิทธิ์ที่ใช้งานได้ (ไม่นับ $excludeId)
+
+## includes/advisor.php
+- `advisor_staff_positions(): array` — ตำแหน่งผู้ตรวจรายงานครูที่ปรึกษา (แก้ได้เฉพาะผู้ดูแลระบบที่หน้าแก้ไขผู้ใช้)
+- `is_advisor_staff(array $user): bool` — ผู้ใช้เป็นหัวหน้างาน/เจ้าหน้าที่งานครูที่ปรึกษาและแนะแนวหรือไม่
+- `is_privileged_position(string $position): bool` — ตำแหน่งที่ให้สิทธิ์พิเศษตามตำแหน่ง (ผู้ตรวจงาน / งานบุคลากร / งานครูที่ปรึกษาและแนะแนว)
+- `is_advisor_staff_only(array $user): bool` — เจ้าหน้าที่งานครูที่ปรึกษาและแนะแนว (ที่ไม่ใช่ admin) — เมนูและหน้าแรกเป็นงานครูที่ปรึกษาอย่างเดียว
+- `can_manage_advisor(array $user): bool` — จัดการกลุ่มที่ปรึกษา วันงดพบ และตรวจรายงานได้ (admin + งานครูที่ปรึกษาฯ)
+- `can_manage_advisor_skip(array $user): bool` — กำหนด/ยกเลิกวันงดพบได้ — เฉพาะหัวหน้างานและเจ้าหน้าที่งานครูที่ปรึกษาและแนะแนว (admin ดูได้อย่างเดียว)
+- `can_view_advisor_overview(array $user): bool` — ดูสรุปรายงานทั้งวิทยาลัยได้ (ผู้ตรวจ + ผู้บริหาร) — หัวหน้าแผนกดูได้เฉพาะแผนกตนเอง
+- `advisor_late_days(): int` — ส่งได้ภายในกี่วันหลังวันพุธโดยไม่นับว่าส่งช้า
+- `advisor_deadline(string $meetDate): string` — วันสุดท้ายที่ส่งได้โดยไม่นับว่าช้า (Y-m-d)
+- `advisor_is_late_now(string $meetDate): bool` — ส่ง ณ วันนี้ถือว่าส่งช้าหรือไม่
+- `advisor_academic_year(int $ayId): ?array` — ภาคเรียนตาม id (ไม่พบ/ไม่ระบุ = ภาคเรียนปัจจุบัน)
+- `advisor_skip_dates(string $from, string $to): array` — วันงดพบในช่วงวันที่ [วันที่ => เหตุผล]
+- `advisor_wednesdays(?array $ay, bool $untilToday = true): array` — วันพุธทั้งหมดของภาคเรียน [วันที่ => เหตุผลงดพบ หรือ null]
+- `advisor_week_wed(string $date): string` — วันพุธของสัปดาห์ (จันทร์–อาทิตย์) ที่วันที่นี้อยู่ — ใช้จับคู่รายงานกับสัปดาห์ที่ต้องส่ง
+- `advisor_week_range(string $date): array` — ช่วงวันของสัปดาห์ [วันจันทร์, วันอาทิตย์] ของวันที่นี้
+- `advisor_week_report_id(int $groupId, string $date, int $exceptId = 0): ?int` — รายงานที่ส่งแล้วของกลุ่มในสัปดาห์เดียวกับวันที่นี้ (id หรือ null)
+- `advisor_due_dates(?array $ay): array` — วันพุธที่ต้องส่งรายงาน (ถึงแล้ว และไม่ใช่วันงดพบ)
+- `advisor_date_block_reason(?array $ay, string $date): string` — ตรวจว่าส่งรายงานของวันที่นี้ได้หรือไม่
+- `advisor_co_advisors(int $ayId, string $groupName, int $exceptTeacherId = 0): array` — ครูที่ปรึกษาร่วม: ครูคนอื่นที่มีกลุ่มเรียนชื่อเดียวกันในภาคเรียนเดียวกัน
+- `advisor_group_fetch(int $id): ?array` — กลุ่มที่ปรึกษา 1 กลุ่ม พร้อมชื่อครู แผนก และภาคเรียน
+- `advisor_teacher_groups(int $teacherId, int $ayId): array` — กลุ่มที่ปรึกษาของครูในภาคเรียน
+- `is_advisor_teacher(int $teacherId): bool` — ครูคนนี้เคยได้รับมอบหมายเป็นครูที่ปรึกษาหรือไม่ (ใช้แสดงเมนู)
+- `advisor_report_fetch(int $id): ?array` — รายงาน 1 รายการ พร้อมข้อมูลกลุ่ม ครู ผู้ตรวจ
+- `advisor_report_images(int $reportId): array` — ภาพถ่ายของรายงาน
+- `can_view_advisor_teacher(array $user, int $teacherId): bool` — ดูข้อมูลรายงาน/สรุปของครูคนนี้ได้หรือไม่
+- `can_review_advisor_report(array $user, array $report): bool` — ผู้ใช้ตรวจรายงานนี้ได้หรือไม่ (admin ทุกฉบับ / งานครูที่ปรึกษาฯ ยกเว้นของตนเอง)
+- `can_delete_advisor_report(array $user, array $report): bool` — ผู้ใช้ลบรายงานของครูได้หรือไม่ (ใช้ทั้งรายงานกิจกรรมโฮมรูมและรายงานการเยี่ยมบ้าน)
+- `advisor_pending_count(int $excludeTeacherId = 0): int` — จำนวนรายงานที่รอตรวจ (ไม่นับของตนเอง)
+- `advisor_report_delete(array $report): void` — ลบรายงานพร้อมรูปภาพ
+- `advisor_summary(?array $ay, int $deptId = 0, int $teacherId = 0, ?array $range = null): array` — สรุปการส่งรายงานรายครูในภาคเรียน
+- `advisor_date_label(string $date): string` — ข้อความวันที่แบบไทยพร้อมชื่อวันย่อ เช่น พ. 4 พ.ย. 2569, จ. 2 พ.ย. 2569
+- `advisor_period(?array $ay): array` — ช่วงเวลาของรายงานสรุป: ภาคเรียน (term) / รายเดือน (month = Y-m) / รายสัปดาห์ (week = วันพุธของสัปดาห์)
+- `advisor_period_query(array $p): array` — พารามิเตอร์ช่วงเวลาสำหรับต่อท้ายลิงก์
+- `advisor_period_controls(array $p): string` — ช่องเลือกช่วงเวลา (วางในฟอร์ม GET ของหน้ารายงานสรุป)
+
+## includes/auth.php
+- `dashboard_url(string $role): string` — หน้าแดชบอร์ดของแต่ละ role
+- `session_timeout_seconds(): int` — ระยะเวลาหมดอายุ session (วินาที)
+- `is_logged_in(): bool` — ล็อกอินอยู่หรือไม่
+- `current_user(bool $refresh = false): ?array` — ข้อมูลผู้ใช้ที่ล็อกอินอยู่ (โหลดจากฐานข้อมูลทุก request เพื่อให้สิทธิ์เป็นปัจจุบัน)
+- `has_role(string ...$roles): bool` — ตรวจว่าผู้ใช้ปัจจุบันมี role ตามที่ระบุหรือไม่
+- `login_user(array $user): void` — ตั้งค่า session หลังตรวจรหัสผ่านถูกต้อง
+- `logout_user(): void` — ออกจากระบบ ล้าง session ทั้งหมด
+- `check_session_timeout(): bool` — ตรวจการหมดเวลา session (ไม่มีการใช้งานเกินเวลาที่ตั้งไว้)
+- `require_login(): array` — บังคับให้ต้องล็อกอิน — ถ้ายังไม่ล็อกอินจะพาไปหน้าเข้าสู่ระบบ
+- `require_role(string ...$roles): array` — บังคับสิทธิ์ตาม role — ใช้ทุกหน้าหลังบ้าน
+- `can_view_teacher(array $user, int $teacherId): bool` — ตรวจว่าผู้ใช้ปัจจุบันดูข้อมูลของครูคนนี้ได้หรือไม่
+- `redirect_if_logged_in(): void` — ถ้าล็อกอินอยู่แล้ว ให้ไปหน้าแดชบอร์ดของตนเอง (ใช้ในหน้า login/register)
+
+## includes/backup.php
+- `backup_dir(): string` — โฟลเดอร์เก็บไฟล์สำรอง
+- `backup_path(string $name): ?string` — ตรวจชื่อไฟล์สำรอง (กัน path traversal) แล้วคืน path เต็ม หรือ null
+- `backup_new_name(string $prefix): string` — ชื่อไฟล์ใหม่
+- `backup_kind_label(string $name): string` — ชนิดไฟล์สำรองจากคำนำหน้าชื่อ
+- `backup_manifest(string $path): ?array` — อ่าน manifest.json จากไฟล์ ZIP
+- `backup_list(): array` — รายการไฟล์สำรอง (ใหม่สุดก่อน)
+- `backup_tables(): array` — ตารางทั้งหมดของฐานข้อมูลปัจจุบัน
+- `backup_dump_sql(string $file): array` — เขียนไฟล์ SQL ของทั้งฐานข้อมูล (1 บรรทัด = 1 คำสั่ง)
+- `backup_upload_files(): array` — ไฟล์แนบที่สำรอง (ไม่รวมโฟลเดอร์ backups)
+- `backup_create(bool $withFiles, string $note = '', string $prefix = 'teachhub'): array` — สร้างไฟล์สำรอง
+- `backup_validate(string $path): array` — ตรวจว่าเป็นไฟล์สำรองของระบบที่ใช้กู้คืนได้
+- `backup_safe_entry(string $entry): ?string` — ชื่อไฟล์แนบใน ZIP ปลอดภัยสำหรับแตกไฟล์หรือไม่ (กัน zip slip)
+- `backup_restore(string $path, bool $restoreFiles = true): array` — กู้คืนจากไฟล์สำรอง (สร้างไฟล์สำรอง "ก่อนกู้คืน" อัตโนมัติก่อนเสมอ)
+- `backup_prune_auto(int $keep): void` — ลบไฟล์สำรองอัตโนมัติที่เก่ากว่าจำนวนที่กำหนด
+- `backup_auto_maybe(): string` — สำรองอัตโนมัติวันละครั้ง (เรียกเมื่อผู้ดูแลระบบเปิดแดชบอร์ด — ไม่ต้องตั้ง cron)
+
+## includes/board.php
+- `board_categories(): array` — หมวดกระทู้: [ชื่อ, ไอคอน, สี badge]
+- `board_statuses(): array` — สถานะกระทู้: [ชื่อ, สี badge]
+- `board_category_badge(string $cat): string`
+- `board_status_badge(string $status): string`
+- `board_can_moderate(array $user): bool` — ผู้ดูแลกระดาน (ผู้ดูแลระบบ)
+- `board_render(string $text): string` — ข้อความในกระทู้ (escape ทุกตัวอักษร + ขึ้นบรรทัด)
+- `board_rate_limited(int $userId): bool` — กันโพสต์ถี่เกินไป: ไม่เกิน 10 ข้อความใน 10 นาที
+- `board_validate(string $title, string $body, bool $needTitle = true): array` — ตรวจหัวข้อ/ข้อความ คืน array ข้อผิดพลาด
+- `board_topic_fetch(int $id): ?array` — ดึงกระทู้พร้อมชื่อผู้โพสต์
+- `board_refresh_counts(int $topicId): void` — คำนวณจำนวนคำตอบและเวลาตอบล่าสุดใหม่
+- `board_open_count(): int` — จำนวนกระทู้ที่รอตอบ (แสดงบนเมนูของผู้ดูแลระบบ)
+- `board_author(array $row): string` — ชื่อผู้โพสต์ (ผู้ใช้ถูกลบ = "ผู้ใช้ที่ถูกลบ")
+
+## includes/drive.php
+- `drive_subdirs(): array` — โฟลเดอร์ใน uploads/ ที่เก็บใน Drive => ชื่อที่แสดง
+- `drive_folder_names(): array` — ชื่อโฟลเดอร์ย่อยใน Drive แยกตามงาน (backups = สำเนาไฟล์สำรองข้อมูล ถ้าเปิดใช้)
+- `drive_parent_id(): string` — ID โฟลเดอร์ปลายทางที่ผู้ดูแลกำหนด ('' = ระบบสร้างโฟลเดอร์หลักเองใน My Drive)
+- `drive_parse_folder_id(string $in): string` — แยก folder ID จากลิงก์ Google Drive หรือ ID ที่วางมา ('' = รูปแบบไม่ถูกต้อง)
+- `drive_scope(): string` — สิทธิ์ที่ต้องขอจาก Google ตามการตั้งค่าปัจจุบัน
+- `drive_scope_ok(): bool` — token ที่เชื่อมต่อไว้มีสิทธิ์พอสำหรับการตั้งค่าปัจจุบันหรือไม่ (เปลี่ยนไปใช้โฟลเดอร์ที่กำหนดเอง → ต้องเชื่อมต่อใหม่)
+- `drive_token_file(): string` — ไฟล์เก็บ token (นอก git — ดู .gitignore)
+- `drive_token(bool $reload = false): ?array` — อ่าน token ที่บันทึกไว้ (null = ยังไม่เชื่อมต่อ)
+- `drive_token_save(?array $data): bool` — บันทึก token ลงไฟล์ (null = ลบไฟล์)
+- `drive_table_ready(): bool` — ตาราง drive_files พร้อมใช้หรือยัง (นำเข้า update_v1.18.sql)
+- `drive_client_ready(): bool` — ตั้งค่า OAuth (Client ID/Secret) ไว้แล้วหรือยัง — ใช้ร่วมกับ Google login
+- `drive_connected(): bool` — เชื่อมต่อ Drive แล้ว (มี refresh token และตารางพร้อม)
+- `drive_active_for(string $subdir): bool` — ไฟล์อัปโหลดใหม่ของโฟลเดอร์นี้ต้องส่งขึ้น Drive หรือไม่
+- `drive_http(string $method, string $url, array $opt = []): array` — เรียก Google API
+- `drive_error_text(array $r): string` — ข้อความผิดพลาดจากผลการเรียก API
+- `drive_access_token(bool $force = false): string` — access token ที่ใช้ได้ (ต่ออายุด้วย refresh token อัตโนมัติ)
+- `drive_api(string $method, string $url, array $opt = []): array` — เรียก Drive API พร้อม access token (ถ้าได้ 401 จะต่ออายุ token แล้วลองใหม่ 1 ครั้ง)
+- `drive_about(): array` — ข้อมูลบัญชีและพื้นที่ของ Drive ที่เชื่อมต่อ
+- `drive_root_trashed(): bool` — โฟลเดอร์หลักอยู่ในถังขยะของ Drive หรือไม่ (ไฟล์ข้างในจะถูกลบถาวรใน 30 วัน)
+- `drive_folder_info(string $id): array` — ตรวจโฟลเดอร์ปลายทาง: ['ok'=>bool, 'name'=>ชื่อโฟลเดอร์, 'error'=>ข้อความ]
+- `drive_create_folder(string $name, string $parent = ''): string` — สร้างโฟลเดอร์ใน Drive คืน id หรือ ''
+- `drive_folder_id(string $subdir, bool $reset = false): string` — id ของโฟลเดอร์ใน Drive สำหรับ subdir (สร้างให้อัตโนมัติ: "TeachHub PT/{subdir}") — '' = ไม่สำเร็จ
+- `drive_upload_file(string $path, string $subdir, string $name, string $mime): array` — ส่งไฟล์ 1 ไฟล์ขึ้น Drive (resumable upload — ไม่โหลดไฟล์ทั้งก้อนเข้าหน่วยความจำ)
+- `drive_trash(string $driveId): bool` — ย้ายไฟล์บน Drive ไปถังขยะ
+- `drive_file_row(string $subdir, string $stored): ?array` — แถวใน drive_files ของไฟล์นี้
+- `drive_push_local(string $subdir, string $stored): array` — ย้ายไฟล์บนโฮสต์ (uploads/{subdir}/{stored}) ขึ้น Drive แล้วลบไฟล์บนโฮสต์
+- `drive_pull_local(array $row): array` — ดึงไฟล์จาก Drive กลับมาเก็บบนโฮสต์ แล้วย้ายไฟล์บน Drive ไปถังขยะ
+- `drive_local_files(?string $only = null): array` — ไฟล์ที่ยังอยู่บนโฮสต์ในโฟลเดอร์ที่เก็บใน Drive: [[subdir, stored_name, size], ...]
+- `drive_summary(): array` — สรุปจำนวน/ขนาดไฟล์บนโฮสต์และบน Drive รายโฟลเดอร์
+- `drive_after_upload(string $subdir, string $stored): void` — เรียกจาก handle_upload(): ส่งไฟล์ที่เพิ่งบันทึกขึ้น Drive (ถ้าเปิดใช้) — ไม่สำเร็จก็เก็บบนโฮสต์ต่อไป
+- `drive_delete(string $subdir, string $stored): void` — เรียกจาก delete_upload(): ลบไฟล์บน Drive (ย้ายไปถังขยะ) และแถวใน drive_files
+- `drive_send(string $subdir, string $stored, array $headers): bool` — เรียกจาก send_file() เมื่อไม่มีไฟล์บนโฮสต์: ส่งไฟล์จาก Drive ให้ผู้ใช้ (stream ทีละส่วน)
+- `drive_connect_url(): string` — เริ่มเชื่อมต่อ: URL ไปหน้าขอสิทธิ์ของ Google (state/PKCE เก็บใน session — กลับมาที่ auth/google_callback.php)
+- `drive_finish_connect(array $res, array $user): array` — บันทึกผลการเชื่อมต่อจาก callback
+- `drive_backup_copy(string $name): string` — ส่งสำเนาไฟล์สำรองข้อมูลขึ้นโฟลเดอร์ "สำรองข้อมูล" ใน Drive (ไฟล์บนโฮสต์ยังอยู่ เพื่อใช้กู้คืน)
+- `drive_disconnect(): void` — ยกเลิกการเชื่อมต่อ (เพิกถอน token ที่ Google + ลบไฟล์ token)
+
+## includes/functions.php
+- `db_query(string $sql, string $types = '', array $params = []): mysqli_stmt` — เตรียมและรันคำสั่ง SQL พร้อมผูกค่าพารามิเตอร์
+- `db_all(string $sql, string $types = '', array $params = []): array` — ดึงข้อมูลหลายแถว (array ของ associative array)
+- `db_one(string $sql, string $types = '', array $params = []): ?array` — ดึงข้อมูลแถวเดียว (ไม่พบคืน null)
+- `db_value(string $sql, string $types = '', array $params = [])` — ดึงค่าคอลัมน์แรกของแถวแรก
+- `db_exec(string $sql, string $types = '', array $params = []): int` — รันคำสั่ง INSERT/UPDATE/DELETE คืนจำนวนแถวที่ได้รับผล
+- `db_insert(string $sql, string $types = '', array $params = []): int` — รันคำสั่ง INSERT คืน id ล่าสุด
+- `settings_all(bool $refresh = false): array` — โหลดค่าตั้งค่าทั้งหมด (cache ไว้ใน request)
+- `setting(string $key, $default = '')` — อ่านค่าตั้งค่าตาม key
+- `setting_save(string $key, string $value): void` — บันทึกค่าตั้งค่า (เพิ่มหรือแก้ไข)
+- `college_name(): string` — ชื่อวิทยาลัย / ระบบ ที่ใช้บ่อย
+- `system_name(): string`
+- `logo_url(): string` — URL โลโก้วิทยาลัย (มีเลขเวอร์ชันตามไฟล์ เพื่อไม่ให้ติด cache เมื่อเปลี่ยนโลโก้)
+- `theme_color(string $key, string $default): string` — สีหลัก/สีรอง ของธีม (ตรวจรูปแบบ #RRGGBB ก่อนนำไปใช้ใน CSS)
+- `e($value): string` — ป้องกัน XSS — ใช้ทุกจุดที่แสดงผลข้อมูล
+- `csrf_token(): string` — สร้าง/คืนค่า CSRF Token ของ session
+- `csrf_field(): string` — สร้าง input hidden สำหรับใส่ในทุกฟอร์ม
+- `csrf_check(): bool` — ตรวจสอบ CSRF Token (จากฟอร์มหรือ header X-CSRF-Token)
+- `csrf_verify(): void` — ตรวจ CSRF ถ้าไม่ผ่านหยุดการทำงานทันที
+- `url(string $path = ''): string` — สร้าง URL ภายในระบบ
+- `asset(string $path): string` — URL ของไฟล์ใน assets พร้อมเลขเวอร์ชันกัน cache
+- `redirect(string $path): void` — เปลี่ยนหน้าแล้วหยุดทำงาน
+- `safe_next(?string $next, string $fallback): string` — ตรวจว่า URL ปลายทาง (next) เป็นลิงก์ภายในระบบ ป้องกัน Open Redirect
+- `abort_page(int $code, string $title, string $message = ''): void` — แสดงหน้าข้อผิดพลาดแบบง่าย แล้วหยุดทำงาน
+- `client_ip(): string` — IP ของผู้ใช้ (ใช้ REMOTE_ADDR เพื่อป้องกันการปลอม header)
+- `is_post(): bool`
+- `post(string $key, string $default = ''): string` — อ่านค่าจาก $_POST แบบตัดช่องว่าง
+- `get(string $key, string $default = ''): string` — อ่านค่าจาก $_GET แบบตัดช่องว่าง
+- `get_int(string $key, int $default = 0): int` — อ่านค่าจาก $_GET เป็นตัวเลขจำนวนเต็ม
+- `old(string $key, string $default = ''): string` — คืนค่าเดิมของฟอร์ม (กรณีส่งไม่ผ่านให้กรอกค่าเดิมกลับ)
+- `flash(string $type, string $message): void` — ตั้งข้อความแจ้งเตือนแสดงครั้งเดียว
+- `flash_get(): array` — ดึงข้อความแจ้งเตือนทั้งหมดแล้วล้างทิ้ง
+- `thai_months(bool $short = true): array`
+- `thai_date(?string $datetime, bool $withTime = false, bool $longMonth = false): string` — แปลงวันที่เป็นรูปแบบไทย พ.ศ. เช่น 16 ต.ค. 2569 14:30 น.
+- `thai_datetime(?string $datetime, bool $longMonth = false): string` — วันที่และเวลาแบบไทย
+- `thai_year(?int $ts = null): int` — ปี พ.ศ. ปัจจุบัน
+- `current_fiscal_year(): int` — ปีงบประมาณปัจจุบัน (เริ่ม 1 ต.ค.) แบบ พ.ศ.
+- `remaining_text(int $seconds): string` — แปลงวินาทีที่เหลือเป็นข้อความ เช่น "2 วัน 5 ชั่วโมง"
+- `role_labels(): array`
+- `role_label(string $role): string`
+- `user_status_labels(): array`
+- `user_status_badge(string $status): string`
+- `name_prefixes(): array` — คำนำหน้าชื่อที่ให้เลือก
+- `position_options(): array` — ตำแหน่งที่ให้เลือกตอนสมัคร (รวมผู้อำนวยการ และรองผู้อำนวยการ 4 ฝ่าย)
+- `is_executive_position(string $position): bool` — ตำแหน่งผู้บริหาร (ไม่สังกัดแผนกวิชา)
+- `is_unit_staff_position(string $position): bool` — ตำแหน่งเจ้าหน้าที่งาน (เช่น เจ้าหน้าที่งานครูที่ปรึกษาและแนะแนว) — ไม่สังกัดแผนกวิชาได้
+- `academic_standing_options(): array` — วิทยฐานะ (สายครู + สายผู้บริหาร เช่น ผู้อำนวยการ/รองผู้อำนวยการ)
+- `full_name(array $u): string` — ชื่อเต็มของผู้ใช้
+- `submission_type_labels(): array` — ชื่อประเภทงาน
+- `submission_type_label(string $type): string`
+- `phase_label(string $phase): string` — ชื่อขั้นตอน/รอบย่อย
+- `status_labels(): array` — สถานะงานที่ส่ง
+- `status_badge(string $status, bool $isLate = false): string` — ป้ายสถานะสี: รอตรวจ=เหลือง, ผ่าน=เขียว, ให้แก้ไข=แดง, ส่งช้า=ส้ม
+- `round_state(array $round, ?int $now = null): string` — สถานะของรอบการส่ง ณ เวลาปัจจุบัน
+- `round_can_submit(array $round): bool` — อนุญาตให้ส่ง/อัปโหลดหรือไม่
+- `round_is_late_now(array $round): bool` — ส่ง ณ ตอนนี้ถือว่าส่งช้าหรือไม่
+- `round_state_badge(array $round): string` — ป้ายสถานะของรอบ
+- `round_card_html(array $r): string` — การ์ดแสดงรอบการส่งงานพร้อมนับถอยหลัง (ใช้ในหน้าแรกและปฏิทิน)
+- `current_academic_year(): ?array` — ภาคเรียนปัจจุบัน
+- `academic_label(?array $ay): string` — ข้อความ ภาคเรียน/ปีการศึกษา เช่น 2/2569
+- `quality_level(float $avg): string`
+- `allowed_mime_map(): array` — MIME type ที่ยอมรับของแต่ละนามสกุล
+- `mime_for_ext(string $ext): string` — MIME type สำหรับส่งไฟล์กลับให้ browser
+- `allowed_upload_extensions(): array` — นามสกุลไฟล์งานที่อนุญาต (จากหน้าตั้งค่า)
+- `image_extensions(): array` — นามสกุลรูปภาพที่อนุญาต
+- `max_upload_bytes(): int` — ขนาดไฟล์สูงสุด (byte) ตามค่าตั้งค่า
+- `format_bytes(int $bytes): string` — แปลงขนาดไฟล์เป็นข้อความ
+- `handle_upload(array $file, string $subdir, array $allowedExt, int $maxBytes): array` — ตรวจสอบและบันทึกไฟล์อัปโหลด
+- `delete_upload(string $subdir, ?string $stored): void` — ลบไฟล์ใน uploads อย่างปลอดภัย (ป้องกัน path traversal) — รวมถึงไฟล์ที่เก็บใน Google Drive
+- `send_file(string $subdir, string $stored, string $downloadName, bool $inline = false): void` — ส่งไฟล์ให้ผู้ใช้ดาวน์โหลด/เปิดดู (ใช้ในสคริปต์ดาวน์โหลดที่ตรวจสิทธิ์แล้ว)
+- `valid_email(string $email): bool`
+- `valid_username(string $u): bool` — ชื่อผู้ใช้: a-z 0-9 _ . - ยาว 4-30 ตัว
+- `valid_phone(string $p): bool` — เบอร์โทร: ตัวเลข 9-10 หลัก (อนุญาตขีด/ช่องว่าง)
+- `password_policy_error(string $pw): string` — นโยบายรหัสผ่าน: อย่างน้อย 8 ตัว มีทั้งตัวอักษรและตัวเลข
+- `log_activity(string $action, string $detail = '', ?int $userId = null): void` — บันทึกว่า ใคร ทำอะไร กับอะไร เมื่อไร จาก IP ใด
+- `log_sanitize(string $text): string` — ปิดบังข้อมูลอ่อนไหวที่อาจหลุดมาในข้อความ log (เลขบัตรประชาชน 13 หลัก) และตัดการขึ้นบรรทัดใหม่
+- `log_status_text(string $from, string $to): string` — ข้อความสถานะเดิม → สถานะใหม่ สำหรับ log เช่น "สถานะ รอตรวจ → ผ่าน"
+- `log_user_name(int $userId): string` — ชื่อผู้ใช้สำหรับข้อความ log เช่น "นายสมชาย ใจดี (somchai)"
+- `log_dir(): string` — โฟลเดอร์ไฟล์ Log (อยู่ใต้ uploads/ ซึ่ง .htaccess ปิดการเข้าถึงผ่านเว็บ และมี .htaccess ของตัวเองอีกชั้น)
+- `log_files(): array` — ไฟล์ Log ทั้งหมด [ชื่อไฟล์ => path] เรียงจากใหม่ไปเก่า
+- `log_write_file(?int $uid, string $action, string $detail): void` — เขียน 1 บรรทัดลงไฟล์ Log ของเดือนปัจจุบัน (หมุนไฟล์รายเดือนตามชื่อไฟล์)
+- `log_retention_days(): int` — ระยะเวลาเก็บ Log (วัน) — 0 = เก็บถาวร
+- `log_purge_old(int $days): int` — ลบ Log ที่เก่ากว่าระยะเวลาเก็บ ทั้งในฐานข้อมูลและไฟล์รายเดือน
+- `log_purge_maybe(): void` — ลบ Log เก่าอัตโนมัติวันละครั้ง (เรียกตอนเข้าสู่ระบบ/เปิดหน้า Log — ไม่ต้องตั้ง cron)
+- `log_action_groups(): array` — หมวดและป้ายชื่อการกระทำใน Log: [รหัสหมวด => [ชื่อหมวด, [action => ป้ายชื่อ]]]
+- `log_action_label(string $action): string` — ป้ายชื่อการกระทำใน Log
+- `log_action_group(string $action): string` — รหัสหมวดของการกระทำ ('other' = ไม่อยู่ในรายการ)
+- `login_locked(string $ip, int $maxAttempts = 5, int $minutes = 15): bool` — ตรวจว่า IP นี้ล็อกอินผิดเกินกำหนดหรือไม่ (ป้องกันการเดารหัสผ่าน)
+- `submission_table(string $type): string` — ชื่อตารางของงานแต่ละประเภท (whitelist — ปลอดภัยสำหรับต่อสตริง SQL)
+- `submission_types(): array` — ประเภทงานที่ต้องส่งไฟล์
+- `submission_type_icon(string $type): string` — ไอคอน Bootstrap Icons ของแต่ละประเภทงาน
+- `teacher_roles(): array` — role ที่ถือเป็น "ครูผู้ต้องส่งงาน" (หัวหน้าแผนกก็ต้องส่งงานสอนของตนเองด้วย)
+- `avatar_url(array $u): string` — URL รูปโปรไฟล์ (ไม่มีรูปใช้รูปเริ่มต้น)
+- `str_limit(string $text, int $limit = 120): string` — ตัดข้อความยาวให้สั้นลง
+- `percent(float $part, float $total, int $decimals = 1): float` — ร้อยละแบบปลอดภัย (กันหารด้วยศูนย์)
+- `random_password(int $length = 10): string` — สร้างรหัสผ่านชั่วคราวแบบสุ่ม (อ่านง่าย ไม่มีตัวที่สับสน เช่น 0/O, 1/l)
+- `download_categories(bool $activeOnly = false): array` — หมวดเอกสารดาวน์โหลด [code => ชื่อ] เรียงตามลำดับที่ admin กำหนด (ตาราง download_categories)
+- `stat_status_summary(int $ayId = 0, int $deptId = 0): array` — สรุปจำนวนงานตามสถานะของแต่ละประเภท
+- `stat_department_submission(int $ayId = 0): array` — จำนวนครูที่ส่งงานแล้ว (นับคน) แยกแผนก แยกประเภทงาน
+- `stat_round_progress(array $round, int $deptId = 0): array` — ความคืบหน้าของรอบการส่ง: จำนวนครูทั้งหมด / ครูที่ส่งแล้ว / ส่งช้า
+- `stat_supervision_by_department(int $ayId = 0): array` — คะแนนนิเทศเฉลี่ยแยกแผนก
+- `active_rounds(): array` — รอบที่ "ยังเกี่ยวข้อง" ตอนนี้: เปิดรับอยู่ หรือเลยกำหนดแต่ยังรับส่งช้า (ภายใน 30 วัน)
+- `teacher_submit_page(string $type): string` — หน้าส่งงานของครูตามประเภท
+- `csv_download(string $filename, array $header, array $rows): void` — ส่งออกไฟล์ CSV ที่เปิดด้วย Excel แล้วภาษาไทยไม่เพี้ยน (ใส่ UTF-8 BOM) แล้วหยุดทำงาน
+- `file_icon(?string $filename): string` — ไอคอนตามนามสกุลไฟล์
+
+## includes/google_auth.php
+- `google_enabled(): bool` — เปิดใช้และตั้งค่าครบหรือไม่
+- `google_redirect_uri(): string` — Redirect URI ที่ต้องลงทะเบียนใน Google Cloud Console
+- `google_allowed_domain(): string` — โดเมนอีเมลที่อนุญาต (ว่าง = ทุกโดเมน)
+- `google_endpoint(string $name): string` — URL ของ Google — โหมดพัฒนา (APP_DEBUG) ใช้เซิร์ฟเวอร์จำลองได้ผ่าน setting google_mock_base เพื่อทดสอบอัตโนมัติ
+- `google_b64url(string $bin): string` — base64url (ไม่มี =)
+- `google_auth_url(string $mode, string $next = ''): string` — สร้าง URL ไปหน้าเลือกบัญชี Google และเก็บ state/PKCE ไว้ใน session
+- `google_http(string $url, ?array $post = null, string $bearer = ''): ?array` — เรียก HTTP (POST form หรือ GET + Bearer) แล้วคืน JSON เป็น array
+- `google_handle_callback(array $query): array` — ตรวจ state แล้วแลก code เป็นข้อมูลผู้ใช้ Google
+- `google_pending_signup(): ?array` — ข้อมูล Google ที่รอสมัครสมาชิก (อายุ 30 นาที)
+- `google_suggest_username(string $email): string` — ชื่อผู้ใช้แนะนำจากอีเมล (ไม่ซ้ำ)
+- `google_button_html(string $label, string $href): string` — ปุ่ม "เข้าสู่ระบบด้วย Google"
+
+## includes/home_visit.php
+- `home_visit_risk_labels(): array`
+- `home_visit_risk_badge(string $risk): string`
+- `home_visit_economic_labels(): array`
+- `home_visit_living_options(): array` — ตัวเลือก "นักเรียนอาศัยอยู่กับ"
+- `home_visit_years(): array` — ปีการศึกษาทั้งหมด (พ.ศ.) ใหม่สุดก่อน
+- `home_visit_year(int $year): int` — ปีการศึกษาจาก ?year= (ไม่ระบุ/ไม่มีในระบบ = ปีของภาคเรียนปัจจุบัน)
+- `home_visit_year_range(int $year): ?array` — ช่วงวันที่ของปีการศึกษา [วันเปิดภาคแรก, วันปิดภาคสุดท้าย] (ไม่ได้กำหนดวันที่ = null)
+- `home_visit_teacher_groups(int $teacherId, int $year): array` — กลุ่มที่ปรึกษาของครูในปีการศึกษา (ทุกภาคเรียนของปีนั้น)
+- `home_visit_fetch(int $id): ?array` — รายงานเยี่ยมบ้าน 1 รายการ พร้อมข้อมูลกลุ่ม ครู ผู้ตรวจ
+- `home_visit_images(int $visitId): array`
+- `can_review_home_visit(array $user, array $visit): bool` — ตรวจได้หรือไม่ — เงื่อนไขเดียวกับรายงานครูที่ปรึกษา (admin ทุกฉบับ / งานครูที่ปรึกษาฯ ยกเว้นของตนเอง)
+- `home_visit_pending_count(int $excludeTeacherId = 0): int`
+- `home_visit_delete(array $visit): void` — ลบรายงานพร้อมไฟล์ภาพ
+- `home_visit_summary(int $year, int $deptId = 0, int $teacherId = 0, ?array $sem = null): array` — สรุปการเยี่ยมบ้านรายครูในปีการศึกษา
+- `home_visit_month_label(string $ym): string` — ข้อความเดือนไทยจาก Y-m เช่น พ.ย. 2569
+- `home_visit_period(int $year): array` — ช่วงเวลาของสรุปการเยี่ยมบ้าน: ทั้งปีการศึกษา หรือภาคเรียนใดภาคเรียนหนึ่งของปีนั้น (?sem= id ของ academic_years)
+- `home_visit_period_controls(array $p): string` — ช่องเลือกภาคเรียน (วางในฟอร์ม GET ต่อจากช่องปีการศึกษา)
+
+## includes/hr.php
+- `hr_enabled(): bool` — ระบบงานบุคลากรเปิดให้ทุกคนใช้งานแล้วหรือไม่
+- `hr_available(array $user): bool` — ผู้ใช้คนนี้ใช้ระบบงานบุคลากรได้หรือไม่
+- `hr_enforce_enabled(array $user): void` — หน้าในโฟลเดอร์ hr/ — ปฏิเสธเมื่อระบบปิดอยู่ (เรียกจาก require_login)
+- `hr_staff_positions(): array` — ตำแหน่งผู้ดูแลงานบุคลากร (กำหนดที่ช่อง "ตำแหน่ง" ของผู้ใช้ — แก้ได้เฉพาะผู้ดูแลระบบ)
+- `is_hr_staff_position(string $position): bool` — ตำแหน่งนี้เป็นตำแหน่งงานบุคลากรหรือไม่
+- `is_hr_staff(array $user): bool` — ครู/หัวหน้าแผนกที่เป็นหัวหน้างาน/เจ้าหน้าที่งานบุคลากรตามตำแหน่ง
+- `can_manage_hr(array $user): bool` — จัดการงานบุคลากรได้ (ดูทะเบียนประวัติทุกคน ตรวจสอบใบลา/การอบรม จัดการคำสั่งและกิจกรรม)
+- `can_view_hr_overview(array $user): bool` — ดูรายชื่อ/รายงานสรุปบุคลากรได้ (ผู้ดูแลงานบุคลากร + ผู้บริหาร)
+- `is_hr_deputy(array $user): bool` — รองผู้อำนวยการ
+- `is_hr_director(array $user): bool` — ผู้อำนวยการ (ผู้บริหารที่ไม่ใช่รองผู้อำนวยการ)
+- `hr_can_view_profile(array $viewer, int $uid): bool` — ดูทะเบียนประวัติของบุคลากรคนนี้ได้หรือไม่ (ผู้บริหารเห็นเฉพาะข้อมูลการปฏิบัติงาน)
+- `hr_can_view_personal(array $viewer, int $uid): bool` — เห็นข้อมูลส่วนบุคคล (เลขประจำตัวประชาชน วันเกิด ที่อยู่ ผู้ติดต่อฉุกเฉิน) — เจ้าของ + ผู้ดูแลงานบุคลากร
+- `hr_can_edit_profile(array $viewer, int $uid): bool` — แก้ไขทะเบียนประวัติได้ (เจ้าของ + ผู้ดูแลงานบุคลากร)
+- `hr_staff_types(): array`
+- `hr_education_levels(): array`
+- `hr_training_categories(): array`
+- `hr_order_categories(): array`
+- `hr_leave_types(): array` — ประเภทการลา: code => [ชื่อ, วิธีนับวัน (work = วันทำการ จันทร์–ศุกร์ / calendar = นับวันต่อเนื่อง), ไอคอน]
+- `hr_leave_type_label(string $type): string`
+- `hr_leave_status_labels(): array`
+- `hr_leave_status_badge(string $status): string`
+- `hr_leave_pending_statuses(): array` — สถานะที่ยังอยู่ระหว่างพิจารณา
+- `hr_leave_step_labels(): array`
+- `hr_attend_labels(): array`
+- `hr_attend_badge(?string $status): string`
+- `hr_mask_citizen(?string $id): string` — เลขประจำตัวประชาชนแบบปิดบางส่วน
+- `hr_valid_citizen(string $id): bool` — ตรวจเลขประจำตัวประชาชน 13 หลัก (checksum)
+- `hr_valid_date(string $d): bool` — ตรวจรูปแบบวันที่ Y-m-d
+- `hr_fiscal_year_of(string $date): int` — ปีงบประมาณ (พ.ศ.) ของวันที่ — เริ่ม 1 ต.ค.
+- `hr_fiscal_range(int $fy): array` — ช่วงวันที่ของปีงบประมาณ [Y-m-d, Y-m-d]
+- `hr_fiscal_param(): int` — ปีงบประมาณจาก ?fy= (ไม่ระบุ/ผิดรูปแบบ = ปีปัจจุบัน)
+- `hr_fiscal_years(): array` — ปีงบประมาณที่ให้เลือก (ปีถัดไป ถึง 5 ปีก่อน)
+- `hr_people(int $deptId = 0): array` — รายชื่อบุคลากรที่ใช้งานอยู่ทั้งหมด (+ ข้อมูลทะเบียนประวัติ)
+- `hr_person(int $uid): ?array` — ผู้ใช้ที่ใช้งานอยู่ตาม id (+ ชื่อแผนก)
+- `hr_profile(int $uid): ?array` — ทะเบียนประวัติ (null = ยังไม่กรอก)
+- `hr_highest_educations(): array` — วุฒิสูงสุดของแต่ละคน [user_id => ระดับ] (เรียงตาม hr_education_levels)
+- `hr_service_length(?string $from): string` — อายุราชการ/อายุงานเป็นข้อความ เช่น "12 ปี 3 เดือน"
+- `hr_file_extensions(bool $imageOnly = false): array` — นามสกุลไฟล์แนบ: เอกสาร = pdf + รูป, รูป = รูปอย่างเดียว
+- `hr_take_upload(string $field, bool $imageOnly = false): array` — รับไฟล์แนบจากฟอร์ม (ไม่ได้เลือกไฟล์ = ok + stored_name null)
+- `hr_file_url(string $kind, int $id, int $uid = 0): string` — ลิงก์เปิดไฟล์แนบผ่านสคริปต์ตรวจสิทธิ์
+- `hr_count_leave_days(string $type, string $start, string $end, string $half = ''): float` — นับจำนวนวันลา (ลาครึ่งวันได้เฉพาะลา 1 วัน)
+- `hr_leave_fetch(int $id): ?array` — ใบลา + ข้อมูลผู้ลา
+- `hr_leave_actions(int $leaveId): array` — ลำดับการพิจารณา (เก่า → ใหม่)
+- `hr_leave_log_action(int $leaveId, string $step, string $decision = '', string $comment = '', ?int $uid = null): void`
+- `hr_executives(): array` — ผู้ใช้ executive ที่ใช้งานอยู่
+- `hr_deputy_ids(): array` — id ผู้พิจารณาขั้นรองผู้อำนวยการ (ตำแหน่งตามค่าตั้งค่า ถ้าไม่มีผู้ใช้ตำแหน่งนั้น = รองผู้อำนวยการทุกฝ่าย)
+- `hr_director_ids(): array` — id ผู้อนุญาตการลา (ผู้อำนวยการ — ถ้าไม่มีบัญชีผู้อำนวยการ = ผู้บริหารทุกคน)
+- `hr_dept_head_ids(int $deptId): array` — id หัวหน้าแผนกของแผนก
+- `hr_leave_step_actors(string $status, array $leave): array` — ผู้รับผิดชอบของขั้นนี้ (ไม่นับตัวผู้ลาเอง) — [] = ไม่มีผู้รับผิดชอบ (ข้ามขั้น)
+- `hr_leave_next_status(string $from, array $leave): string` — สถานะถัดไปของใบลา เริ่มหาจากขั้น $from (ข้ามขั้นที่ไม่มีผู้รับผิดชอบ)
+- `hr_leave_status_step(string $status): string` — ขั้นของสถานะ (ใช้บันทึกใน hr_leave_actions)
+- `hr_leave_can_act(array $user, array $leave): bool` — ผู้ใช้พิจารณาใบลานี้ในขั้นปัจจุบันได้หรือไม่
+- `hr_leave_can_view(array $user, array $leave): bool` — ดูใบลานี้ได้หรือไม่
+- `hr_leave_pending_for(array $user): array` — ใบลาที่รอผู้ใช้คนนี้พิจารณา
+- `hr_leave_pending_count(array $user): int` — จำนวนใบลาที่รอผู้ใช้คนนี้พิจารณา (ตัวเลขบนเมนู)
+- `hr_leave_used(int $uid, int $fy, int $beforeLeaveId = 0): array` — จำนวนวันลาที่อนุญาตแล้วในปีงบประมาณ [ประเภท => ['times' => ครั้ง, 'days' => วัน]]
+- `hr_leave_previous(array $leave): ?array` — ใบลาครั้งก่อน (อนุญาตแล้ว) ประเภทเดียวกัน — ใช้ในแบบใบลา "ลาครั้งสุดท้าย"
+- `hr_vacation_quota(int $uid, int $fy): float` — สิทธิ์ลาพักผ่อนในปีงบประมาณ (รวมวันสะสม)
+- `hr_leave_range_text(array $l): string` — ช่วงวันลาเป็นข้อความ
+- `hr_days(float $d): string` — แสดงจำนวนวัน (ตัด .0)
+- `hr_training_pending_count(): int` — จำนวนรายการอบรมที่รอตรวจ
+- `hr_order_visible(array $user, array $order): bool` — ผู้ใช้เห็นคำสั่งนี้ได้หรือไม่
+- `hr_event_is_selected(array $ev): bool` — กิจกรรมนี้กำหนดผู้เข้าร่วมเฉพาะบางคน (ไม่ใช่บุคลากรทุกคน)
+- `hr_event_participant_ids(array $ev): array` — id ผู้ที่ต้องเข้าร่วมกิจกรรม (ทุกคน = บุคลากรที่ใช้งานอยู่ทั้งหมด)
+- `hr_event_is_participant(array $ev, int $uid): bool` — ผู้ใช้คนนี้ถูกกำหนดให้เข้าร่วมกิจกรรมหรือไม่
+- `hr_event_participant_sql(string $userExpr): string` — เงื่อนไข SQL: กิจกรรม e ที่ผู้ใช้ (คอลัมน์/ค่า $userExpr) ต้องเข้าร่วม
+- `hr_event_self_open(array $ev): bool` — กิจกรรมที่ยังรายงานเองได้: ตั้งแต่วันงาน ถึง 7 วันหลังวันงาน
+- `hr_report_types(): array` — ชนิดรายงาน => ชื่อรายงาน
+- `hr_report_data(string $type, int $fy, int $deptId = 0): array` — ข้อมูลรายงานแบบตาราง
+
+## includes/pdpa.php
+- `pdpa_version(): string` — ฉบับปัจจุบันของข้อตกลง
+- `pdpa_required(): bool` — บังคับให้ผู้ใช้ยอมรับก่อนใช้งานหรือไม่
+- `pdpa_needs_consent(array $user): bool` — ผู้ใช้คนนี้ต้องยอมรับข้อตกลง (ฉบับปัจจุบัน) ก่อนหรือไม่
+- `pdpa_accept(int $userId): void` — บันทึกการยอมรับข้อตกลงฉบับปัจจุบัน
+- `pdpa_effective_date(): string` — วันที่ประกาศใช้ฉบับปัจจุบัน (Y-m-d)
+- `pdpa_content(): string` — เนื้อหาข้อตกลงปัจจุบัน
+- `pdpa_default_content(): string` — ข้อความเริ่มต้นของข้อตกลง (admin แก้ไขได้ที่เมนู ข้อตกลง PDPA)
+- `pdpa_render(string $text): string` — แปลงข้อความข้อตกลงเป็น HTML (escape ทุกบรรทัดก่อน)
+
+## includes/plan_eval.php
+- `is_curriculum_head(array $user): bool` — ผู้ใช้เป็นหัวหน้างานพัฒนาหลักสูตรและการจัดการเรียนรู้หรือไม่
+- `plan_eval_scope_all(array $user): bool` — ประเมินแผนได้ทุกแผนก (admin + หัวหน้างานพัฒนาหลักสูตรฯ)
+- `is_plan_evaluator(array $user): bool` — เป็นผู้ประเมินแผน (ทุกแผนก หรือหัวหน้าแผนกที่มีแผนกสังกัด)
+- `plan_eval_report_scope(array $user): ?int` — ขอบเขตแผนกที่ผู้ใช้ดูรายงานได้
+- `can_evaluate_plan(array $user, array $plan): bool` — ผู้ใช้ประเมิน (บันทึก/แก้ไข) แผนนี้ได้หรือไม่ — ตรวจฝั่งเซิร์ฟเวอร์ทุกครั้งที่บันทึก
+- `can_view_plan_eval(array $user, array $plan): bool` — ผู้ใช้ดูผลการประเมินแผนนี้ได้หรือไม่ (ครูเจ้าของแผน / ผู้ประเมินตามขอบเขต / ผู้ดูรายงาน)
+- `plan_eval_ay_sql(string $lp = 'lp', string $r = 'r'): string` — นิพจน์ SQL ภาคเรียนของแผน (แผนรุ่นเก่าอาจไม่มี academic_year_id ใช้ของรอบแทน)
+- `plan_eval_fetch_plan(int $lessonPlanId): ?array` — ดึงแผนการจัดการเรียนรู้ 1 รายการ พร้อมครู แผนก ภาคเรียน ท-ป-น และผลประเมิน (pe_*) ถ้ามี
+- `plan_eval_fetch(int $evalId): ?array` — ผลการประเมิน 1 รายการ พร้อมชื่อผู้ประเมินและแผนกที่บันทึกไว้
+- `plan_eval_criteria_active(string $part): array` — รายการประเมินที่เปิดใช้งาน
+- `plan_eval_items(int $evalId): array` — ผลรายข้อของการประเมิน ['check' => [criteria_id => แถว], 'quality' => [...]]
+- `plan_eval_level(float $avg): string` — ระดับคุณภาพตามแบบประเมินแผนฯ (ค่าเฉลี่ย 5 ระดับ)
+- `plan_eval_score_labels(): array` — ระดับคุณภาพและความหมาย (ตามคำชี้แจงข้อ 3 ของแบบฟอร์ม)
+- `plan_eval_level_table(): array` — การแปลผล [ช่วงค่าเฉลี่ย, ร้อยละ, ระดับ]
+- `plan_eval_level_badge(?float $avg): string` — ป้ายระดับคุณภาพ
+- `plan_eval_pass_badge(bool $passed): string` — ป้ายผ่าน/ไม่ผ่านเกณฑ์
+- `plan_eval_is_final(?array $ev): bool` — ผลที่ส่งให้ครูแล้ว (ไม่ใช่ร่าง)
+- `plan_eval_status_badge(string $status): string` — ป้ายสถานะร่าง/ส่งผลแล้ว
+- `plan_eval_check_labels(): array` — ตัวเลือกตอนที่ 1
+- `plan_eval_decisions(): array` — ผลการพิจารณา (ตอนที่ 3)
+- `plan_eval_decision_text(array $ev): string` — ข้อความผลการพิจารณา (รวมวันที่กำหนดนำเสนอใหม่)
+- `plan_eval_category_summary(array $qualityItems): array` — ค่าเฉลี่ยรายด้านของตอนที่ 2 [ด้าน => ['n' => จำนวนข้อ, 'sum' => คะแนนรวม, 'avg' => ค่าเฉลี่ย]]
+- `plan_eval_compute(array $checkCriteria, array $qualityCriteria, array $checks, array $scores, bool $final = true): array` — ตรวจและคำนวณผลจากข้อมูลที่กรอก
+- `plan_eval_save(array $user, array $plan, array $info, array $calc): int` — บันทึกผลการประเมิน (เพิ่มใหม่ หรือแก้ไขผลเดิมของแผนนี้) — ผู้เรียกต้องตรวจสิทธิ์ can_evaluate_plan() ก่อน
+- `plan_eval_scope_where(int $ayId, int $deptId): array` — เงื่อนไข SQL ของแผนที่อยู่ในขอบเขต (ใช้กับ lp / u / pe)
+- `plan_eval_pending_count(array $user): int` — จำนวนแผนที่รอประเมิน (ยังไม่ประเมิน หรือยังเป็นร่าง) ในขอบเขตของผู้ประเมิน (ภาคเรียนปัจจุบัน) — ใช้แสดงบนเมนู
+- `plan_eval_unack_count(int $teacherId): int` — จำนวนผลประเมินแผนของครูที่ส่งแล้วแต่ยังไม่กดรับทราบ
+- `plan_eval_selected_ay(): int` — ภาคเรียนที่เลือกจาก ?ay= (ไม่ระบุ = ภาคเรียนปัจจุบัน, 0 = ทุกภาคเรียน ผ่าน ?ay=all)
+- `plan_eval_report(int $ayId, int $deptId): array` — ข้อมูลรายงานผลการประเมินแผนฯ — นับเป็น "ประเมินแล้ว" เฉพาะผลที่ส่งให้ครูแล้ว (ร่างนับเป็น drafts)
+
+## includes/presence.php
+- `presence_touch(array $user): void` — บันทึกว่าผู้ใช้ยังใช้งานอยู่ (เรียกจาก require_login และหน้าบ้านเมื่อล็อกอินอยู่)
+- `presence_clear(int $uid): void` — ออกจากระบบ: เลื่อนเวลาใช้งานล่าสุดให้พ้นช่วงออนไลน์ทันที
+- `presence_online_count(): int` — จำนวนผู้ใช้ที่ออนไลน์อยู่
+- `presence_online_users(int $limit = 30): array` — รายชื่อผู้ใช้ที่ออนไลน์อยู่ (ล่าสุดก่อน) — แสดงเฉพาะผู้ที่ล็อกอินแล้ว
+- `visit_is_bot(string $ua): bool` — โปรแกรมเก็บข้อมูลเว็บ/บอต — ไม่นับเป็นผู้เข้าชม
+- `visit_track(): void` — นับผู้เข้าชม 1 ครั้งต่อคนต่อวัน (เรียกจากส่วนหัวของหน้าเว็บ)
+- `visit_stats(): array` — สถิติผู้เข้าชม: วันนี้ / เดือนนี้ / ทั้งหมด
+- `user_cheer(array $user): ?array` — สถิติการเข้าใช้งานของผู้ใช้ + ข้อความชื่นชม
+
+## includes/reports.php
+- `report_status_options(string $type): array` — ตัวเลือกสถานะรายคนของแต่ละรายงาน
+- `report_person_status(array $r): string` — สถานะรวมของครู 1 คน จากงานหลายรายการ
+- `report_submission_rows(string $type, array $f): array` — รายงานงานที่ต้องส่ง (แผนการสอน / PA / วิจัย) รายคน
+- `report_filter(string $type, array $rows, string $status): array` — กรองแถวรายคนตามสถานะ (ทำหลังคำนวณสรุป เพื่อให้ร้อยละคิดจากครูทั้งหมด)
+- `report_submission_summary(array $rows): array` — สรุปจำนวนและร้อยละจากแถวรายคน (ก่อนกรองสถานะ)
+- `report_group_by_department(array $rows, string $statusKey = 'person_status'): array` — จัดกลุ่มแถวรายคนตามแผนก (สำหรับกราฟ)
+- `report_supervision_rows(array $f): array` — รายงานนิเทศการสอนรายคน
+- `report_supervision_categories(array $f): array` — คะแนนนิเทศเฉลี่ยรายด้าน
+- `report_student_eval_rows(array $f): array` — รายงานการประเมินการสอนโดยนักเรียน รายคน
+- `report_student_eval_categories(array $f): array` — คะแนนเฉลี่ยรายด้านจากการประเมินโดยนักเรียน
+- `report_student_eval_by_level(array $f): array` — สรุปการประเมินโดยนักเรียนแยกตามระดับ ปวช./ปวส. และชั้นปี
+- `report_supervision_departments(array $rows): array` — คะแนนนิเทศเฉลี่ยรายแผนก (จากแถวรายคน)
+
+## includes/student_eval.php
+- `student_levels(): array` — ระดับของกลุ่มนักเรียน => จำนวนชั้นปี (ปวช. 1-3, ปวส. 1-2)
+- `student_group_label(string $level, int $year, string $group): string` — ชื่อกลุ่มนักเรียนสำหรับแสดงผล เช่น "ปวช. 1/2" หรือ "ปวส. 2" (ไม่มีกลุ่ม)
+- `student_score_labels(): array` — ความหมายคะแนนสำหรับนักเรียน (ระดับความคิดเห็น)
+- `site_base_url(): string` — URL หลักของระบบแบบเต็ม (ใช้สร้าง QR Code ที่โทรศัพท์นักเรียนเปิดได้)
+- `site_url_is_local(): bool` — URL ทำงานแค่บนเครื่องนี้หรือไม่ (โทรศัพท์นักเรียนจะเปิดไม่ได้)
+- `student_eval_url(string $token): string` — ลิงก์แบบประเมินสำหรับนักเรียน
+- `student_eval_fetch($key, string $by = 'id'): ?array` — ดึงรายการประเมิน 1 รายการ พร้อมชื่อครู แผนก ภาคเรียน และจำนวนผู้ตอบ
+- `student_eval_state(array $s): string` — สถานะของรายการประเมิน ณ ตอนนี้
+- `student_eval_state_badge(array $s): string`
+- `can_view_student_eval(array $user, array $s): bool` — ผู้ใช้ดูผลการประเมินนี้ได้หรือไม่
+- `can_see_student_eval_qr(array $user, array $s): bool` — ผู้ใช้เห็นลิงก์/QR Code ได้หรือไม่ — เฉพาะ admin และครูเจ้าของรายการ
+- `student_eval_summary(array $sessionIds, bool $withComments = true): array` — สรุปผลการประเมินของรายการ (หรือหลายรายการ)
+- `student_eval_cookie(int $sessionId): string` — ชื่อ cookie กันประเมินซ้ำของรายการนี้ (1 เบราว์เซอร์ = 1 ครั้ง)
+
+## includes/submissions.php
+- `submission_subdir(string $type): string` — โฟลเดอร์เก็บไฟล์ใน uploads/ ของแต่ละประเภท
+- `round_phase_options(string $type): array` — ขั้นตอน (phase) ที่ใช้ได้ของรอบแต่ละประเภท
+- `submission_title_sql(string $type, string $a = 's'): string` — นิพจน์ SQL สำหรับ "ชื่องาน" ของแต่ละประเภท (ใช้แสดงในตาราง)
+- `submission_fetch(string $type, int $id): ?array` — ดึงงาน 1 รายการ พร้อมข้อมูลรอบ ครู แผนก และภาคเรียน
+- `submission_round(array $sub): array` — รอบการส่งในรูปแบบที่ round_state() ใช้ได้ จากแถวที่ได้จาก submission_fetch()
+- `submission_files(string $type, int $id): array` — ไฟล์ทุกเวอร์ชันของงาน (ใหม่สุดก่อน)
+- `submission_reviews(string $type, int $id): array` — ประวัติการตรวจ (ใหม่สุดก่อน)
+- `submission_last_review(string $type, int $id): ?array` — ความเห็นล่าสุดของผู้ตรวจ
+- `submission_store_file(string $type, int $id, int $version, array $upload, bool $isLate, string $note, int $uid): int` — บันทึกข้อมูลไฟล์ที่อัปโหลดแล้ว (จาก handle_upload) เป็นเวอร์ชันใหม่
+- `submission_upload(string $type, string $field = 'file'): array` — อัปโหลดไฟล์งานตามค่าตั้งค่าระบบ (นามสกุล/ขนาด)
+- `submission_admin_perm(string $type): string` — รหัสสิทธิ์เจ้าหน้าที่ดูแลระบบที่ใช้ตรวจงานประเภทนี้ (includes/admin_perm.php)
+- `can_view_submission(array $user, array $sub): bool` — ผู้ใช้ดูงานนี้ได้หรือไม่
+- `reviewer_positions(): array` — ผู้ตรวจงานตามตำแหน่ง (กำหนดที่ช่อง "ตำแหน่ง" ของผู้ใช้ — แก้ได้เฉพาะผู้ดูแลระบบ)
+- `reviewer_position_list(): array` — รายชื่อตำแหน่งผู้ตรวจทั้งหมด (ไม่ซ้ำ)
+- `is_reviewer_position(string $position): bool` — ตำแหน่งนี้เป็นตำแหน่งผู้ตรวจงานหรือไม่
+- `normalize_position(string $position): string` — ตัดช่องว่างซ้ำในชื่อตำแหน่ง เพื่อเทียบได้ตรง
+- `designated_review_types(array $user): array` — ประเภทงานที่ผู้ใช้เป็นผู้ตรวจตามตำแหน่ง
+- `is_designated_reviewer(array $user, string $type): bool`
+- `designated_reviewers(string $type): array` — ผู้ใช้ที่เป็นผู้ตรวจงานประเภทนี้ (สำหรับแสดงในหน้าครู)
+- `can_review_submission(array $user, array $sub): bool` — ผู้ใช้ตรวจงานนี้ได้หรือไม่
+- `submission_review(string $type, array $sub, string $result, string $comment, int $reviewerId): void` — บันทึกผลการตรวจ และปรับสถานะงาน
+- `submission_delete(string $type, array $sub): void` — ลบงานพร้อมไฟล์ทุกเวอร์ชันและประวัติการตรวจ
+- `submission_create(string $type, array $round, int $uid, string $note, callable $insert): array` — สร้างงานใหม่พร้อมไฟล์ฉบับที่ 1 (ใช้ร่วมกันทุกประเภทงาน)
+- `submission_resubmit(string $type, array $sub, int $uid, string $note, string $setSql = '', string $setTypes = '', array $setParams = []): string` — ส่งฉบับใหม่ (เวอร์ชัน +1) สถานะกลับเป็น "รอตรวจ"
+- `own_submission(string $type, int $id, int $uid): ?array` — ดึงงานของครูคนนี้เท่านั้น (ป้องกันการเปิดงานของผู้อื่นด้วยการเดา id)
+- `upload_hint(): string` — ข้อความแนะนำชนิด/ขนาดไฟล์ และค่า accept ของ input file
+- `upload_accept(): string`
+- `submission_resubmit_block_reason(array $sub): string` — ครูส่งใหม่ (เวอร์ชันใหม่) ได้หรือไม่
+- `submission_can_delete(array $sub): bool` — ครูลบงานของตนเองได้หรือไม่ (ยังไม่เคยถูกตรวจ และรอบยังเปิดรับ)
+- `submission_detail_fields(string $type, array $s): array` — รายละเอียดเฉพาะของแต่ละประเภท [ป้ายชื่อ => ค่า] สำหรับแสดงผล
+- `pa_part_labels(string $phase): array` — ชื่อหัวข้อส่วนที่ 1 / 2 ของแบบ PA ตามรอบ
+- `review_page(string $role, string $type): string` — หน้าตรวจงานของ role ปัจจุบัน
+
+## includes/supervision.php
+- `schedule_status_badge(string $status): string` — สถานะตารางนิเทศ
+- `quality_badge(?float $avg): string` — ป้ายระดับคุณภาพ
+- `score_labels(): array` — ความหมายของคะแนน 1-5
+- `schedule_fetch(int $id): ?array` — ดึงตารางนิเทศ 1 รายการ พร้อมชื่อครู ผู้นิเทศ แผนก ภาคเรียน และผลการนิเทศ (ถ้ามี)
+- `can_view_schedule(array $user, array $sc): bool` — ผู้ใช้ดูตารางนิเทศ/ผลนี้ได้หรือไม่
+- `can_record_schedule(array $user, array $sc): bool` — ผู้ใช้บันทึก/แก้ไขผลการนิเทศได้หรือไม่
+- `can_manage_schedule(array $user, array $sc): bool` — ผู้ใช้จัดการ (แก้ไข/ยกเลิก/ลบ) ตารางนี้ได้หรือไม่
+- `supervision_criteria_active(string $audience = 'supervisor'): array` — หัวข้อประเมินที่เปิดใช้งาน (เรียงตามลำดับ)
+- `supervision_scores(int $resultId): array` — คะแนนรายข้อของผลการนิเทศ [criteria_id => แถว]
+- `supervision_category_avg(array $scores): array` — คะแนนเฉลี่ยรายด้าน [ด้าน => ค่าเฉลี่ย]
+- `supervision_images(int $resultId): array` — รูปหลักฐานของผลการนิเทศ
+- `normalize_multi_files(?array $files): array` — จัดรูป $_FILES ที่อัปโหลดหลายไฟล์ ให้เป็นรายการไฟล์ทีละรายการ
+- `supervisor_options(): array` — ตัวเลือกผู้นิเทศ (หัวหน้าแผนก ผู้บริหาร และ admin ที่ใช้งาน)
+
+## includes/supervision_report.php
+- `report_approval_chain(): array` — ลำดับผู้พิจารณา [ขั้น => ['user_id', 'title', 'name']]
+- `report_chain_ready(): bool` — ผู้พิจารณาครบทุกขั้นหรือไม่
+- `report_user_steps(int $userId): array` — ผู้ใช้เป็นผู้พิจารณาขั้นใดบ้าง
+- `report_fetch(int $id): ?array` — ดึงรายงาน พร้อมชื่อแผนก ภาคเรียน ผู้จัดทำ
+- `report_status_text(array $r): string` — ข้อความสถานะของรายงาน
+- `report_status_badge(array $r): string`
+- `can_view_report(array $user, array $r): bool` — ผู้ใช้เปิดดูรายงานได้หรือไม่
+- `is_current_report_approver(array $user, array $r): bool` — ผู้ใช้เป็นผู้พิจารณาขั้นปัจจุบันของรายงานนี้หรือไม่
+- `can_edit_report(array $user, array $r): bool` — ผู้จัดทำแก้ไข/เสนอได้หรือไม่
+- `report_actions(int $reportId): array` — ประวัติการเสนอ/พิจารณา
+- `report_latest_opinions(int $reportId): array` — ความเห็นล่าสุดของแต่ละขั้น (หลังการเสนอครั้งล่าสุด) [ขั้น => แถว]
+- `report_build_data(int $deptId, int $ayId, ?string $from, ?string $to): array` — ข้อมูลผลการนิเทศของแผนก (สดจากฐานข้อมูล) สำหรับใส่ในรายงาน
+- `report_data(array $r): array` — ข้อมูลของรายงาน: ถ้าเสนอแล้วใช้ snapshot, ถ้ายังเป็นร่างใช้ข้อมูลสด
+- `report_pending_count(int $userId): int` — จำนวนรายงานที่รอผู้ใช้คนนี้พิจารณา
+- `report_action_label(string $action, int $step): string` — ชื่อการกระทำ
+
+## includes/teaching.php
+- `lesson_doc_label(string $docType): string` — ชื่อประเภทเอกสารในงานแผนการสอน
+- `lesson_doc_types(): array` — ประเภทเอกสารที่ครูเลือกส่งได้ (ตัวเลือก list ในฟอร์มส่ง)
+- `round_academic_year_id(array $round): int` — ภาคเรียนของรอบ (ถ้ารอบไม่ระบุ ใช้ภาคเรียนปัจจุบัน)
+- `teaching_subjects(int $teacherId, int $ayId): array` — รายวิชาที่ครูสอนในภาคเรียน
+- `teaching_subjects_with_status(int $teacherId, int $ayId): array` — รายวิชาที่สอนพร้อมสถานะโครงการสอน/แผนการสอนล่าสุดของแต่ละวิชา
+- `teaching_compliance(int $teacherId, int $ayId): array` — สรุปเกณฑ์การส่งของครู 1 คนใน 1 ภาคเรียน
+- `compliance_badge(bool $ok, string $okText = 'ครบตามเกณฑ์', string $noText = 'ยังไม่ครบ'): string` — ป้ายผลตามเกณฑ์
+- `approved_plan_subject_map(): array` — รายวิชาที่แผนการจัดการเรียนรู้ผ่านแล้ว (ใช้เลือกวิชาในการนิเทศ/การประเมินโดยนักเรียน)
+- `approved_plan_subject_ok(int $teacherId, int $ayId, string $label): bool` — วิชานี้ (รูปแบบ "รหัส ชื่อวิชา") แผนการจัดการเรียนรู้ผ่านแล้วหรือไม่
+- `approved_plan_subject_js(array $map): string` — JavaScript: เติมตัวเลือก "รายวิชา" ตามครูและภาคเรียนที่เลือก
