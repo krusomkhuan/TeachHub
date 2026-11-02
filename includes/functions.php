@@ -1167,17 +1167,29 @@ function log_action_group(string $action): string
     return 'other';
 }
 
-/**
- * ตรวจว่า IP นี้ล็อกอินผิดเกินกำหนดหรือไม่ (ป้องกันการเดารหัสผ่าน)
- * ผิดเกิน 5 ครั้งใน 15 นาที จะถูกระงับชั่วคราว
- */
-function login_locked(string $ip, int $maxAttempts = 5, int $minutes = 15): bool
+/** คีย์ใน log สำหรับชื่อที่ไม่พบในระบบ แยกชื่อเต็มแม้ส่วนที่แสดงจะถูกตัดสั้น */
+function unknown_login_detail(string $login): string
 {
+    $normalized = mb_strtolower(trim($login), 'UTF-8');
+    return log_sanitize('ชื่อผู้ใช้: ' . mb_substr($normalized, 0, 50)
+        . ' [SHA256: ' . hash('sha256', $normalized) . ']');
+}
+
+/**
+ * จำกัดการล็อกอินผิด 5 ครั้งใน 5 นาที ต่อบัญชีร่วมกับ IP
+ * ใช้ user_id เพื่อให้ชื่อผู้ใช้และอีเมลของบัญชีเดียวกันนับร่วมกัน
+ * ชื่อที่ไม่พบในระบบใช้คีย์ใน detail แทน ไม่รวมกับผู้ใช้อื่นที่ใช้ IP เดียวกัน
+ */
+function login_locked(string $ip, ?int $userId, string $login, int $maxAttempts = 5, int $minutes = 5): bool
+{
+    $accountCondition = $userId !== null ? 'user_id = ?' : 'user_id IS NULL AND detail = ?';
+    $accountKey = $userId ?? unknown_login_detail($login);
     $count = (int)db_value(
         'SELECT COUNT(*) FROM activity_logs
-         WHERE action = ? AND ip_address = ? AND created_at > (NOW() - INTERVAL ? MINUTE)',
-        'ssi',
-        ['login_failed', $ip, $minutes]
+         WHERE action = ? AND ip_address = ? AND ' . $accountCondition . '
+           AND created_at > (NOW() - INTERVAL ? MINUTE)',
+        $userId !== null ? 'ssii' : 'sssi',
+        ['login_failed', $ip, $accountKey, $minutes]
     );
     return $count >= $maxAttempts;
 }

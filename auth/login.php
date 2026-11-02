@@ -20,8 +20,6 @@ if (is_post()) {
 
     if ($login === '' || $password === '') {
         $error = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
-    } elseif (login_locked($ip)) {
-        $error = 'เข้าสู่ระบบผิดพลาดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่';
     } else {
         $user = db_one(
             'SELECT * FROM users WHERE username = ? OR email = ? LIMIT 1',
@@ -29,34 +27,39 @@ if (is_post()) {
             [$login, $login]
         );
 
-        // ตรวจรหัสผ่าน (ถ้าไม่พบผู้ใช้ ยังเรียก password_verify เพื่อให้เวลาตอบสนองใกล้เคียงกัน)
-        $dummyHash = '$2y$10$w1Um.4L0jJWMyJwBo6yBH.BrI1yUhE6eei5wrWd5dA0WjeWmlPsw6';
-        $ok = password_verify($password, $user['password_hash'] ?? $dummyHash) && $user !== null;
-
-        if (!$ok) {
-            log_activity('login_failed', 'ชื่อผู้ใช้: ' . mb_substr($login, 0, 50), $user ? (int)$user['id'] : null);
-            $error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-        } elseif ($user['status'] === 'pending') {
-            $error = 'บัญชีของท่านอยู่ระหว่างรออนุมัติจากผู้ดูแลระบบ';
-        } elseif ($user['status'] === 'suspended') {
-            $error = 'บัญชีของท่านถูกระงับการใช้งาน กรุณาติดต่องานพัฒนาหลักสูตรฯ';
+        if (login_locked($ip, $user ? (int)$user['id'] : null, $login)) {
+            $error = 'บัญชีนี้เข้าสู่ระบบผิดพลาดหลายครั้งเกินไปจากเครือข่ายนี้ กรุณารอ 5 นาทีแล้วลองใหม่';
         } else {
-            // อัปเกรด hash อัตโนมัติถ้าอัลกอริทึมเปลี่ยน
-            if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
-                db_exec('UPDATE users SET password_hash = ? WHERE id = ?', 'si',
-                    [password_hash($password, PASSWORD_DEFAULT), (int)$user['id']]);
+            // ตรวจรหัสผ่าน (ถ้าไม่พบผู้ใช้ ยังเรียก password_verify เพื่อให้เวลาตอบสนองใกล้เคียงกัน)
+            $dummyHash = '$2y$10$w1Um.4L0jJWMyJwBo6yBH.BrI1yUhE6eei5wrWd5dA0WjeWmlPsw6';
+            $ok = password_verify($password, $user['password_hash'] ?? $dummyHash) && $user !== null;
+
+            if (!$ok) {
+                $detail = $user ? 'ชื่อผู้ใช้: ' . mb_substr($login, 0, 50) : unknown_login_detail($login);
+                log_activity('login_failed', $detail, $user ? (int)$user['id'] : null);
+                $error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+            } elseif ($user['status'] === 'pending') {
+                $error = 'บัญชีของท่านอยู่ระหว่างรออนุมัติจากผู้ดูแลระบบ';
+            } elseif ($user['status'] === 'suspended') {
+                $error = 'บัญชีของท่านถูกระงับการใช้งาน กรุณาติดต่องานพัฒนาหลักสูตรฯ';
+            } else {
+                // อัปเกรด hash อัตโนมัติถ้าอัลกอริทึมเปลี่ยน
+                if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
+                    db_exec('UPDATE users SET password_hash = ? WHERE id = ?', 'si',
+                        [password_hash($password, PASSWORD_DEFAULT), (int)$user['id']]);
+                }
+
+                login_user($user);
+
+                // ต้องเปลี่ยนรหัสผ่านก่อน (หน้าเปลี่ยนรหัสผ่านจะแสดงคำอธิบายเอง)
+                if ((int)$user['must_change_password'] === 1) {
+                    redirect('auth/change_password.php');
+                }
+
+                flash('success', 'ยินดีต้อนรับ ' . full_name($user));
+                header('Location: ' . safe_next($next, dashboard_url($user['role'])));
+                exit;
             }
-
-            login_user($user);
-
-            // ต้องเปลี่ยนรหัสผ่านก่อน (หน้าเปลี่ยนรหัสผ่านจะแสดงคำอธิบายเอง)
-            if ((int)$user['must_change_password'] === 1) {
-                redirect('auth/change_password.php');
-            }
-
-            flash('success', 'ยินดีต้อนรับ ' . full_name($user));
-            header('Location: ' . safe_next($next, dashboard_url($user['role'])));
-            exit;
         }
     }
 }
