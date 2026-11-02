@@ -65,19 +65,12 @@ require APP_ROOT . '/includes/public_header.php';
                 <h1 class="mb-1"><?= e(system_name()) ?></h1>
                 <div class="fs-5 mb-2"><?= e(setting('system_fullname', 'ระบบการส่งงานและรายงานกิจกรรม')) ?></div>
                 <div class="slogan mb-4">“<?= e(setting('slogan', 'ทุกงานวิชาการครบ จบในที่เดียว')) ?>”</div>
-                <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-md-start">
-                    <?php if ($viewer): ?>
+                <?php if ($viewer): ?>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-md-start">
                         <a href="<?= e(url(dashboard_url($viewer['role']))) ?>" class="btn btn-accent btn-lg px-4">
                             <i class="bi bi-speedometer2 me-1"></i> เข้าสู่หน้าทำงาน</a>
-                    <?php else: ?>
-                        <a href="<?= e(url('auth/login.php')) ?>" class="btn btn-accent btn-lg px-4">
-                            <i class="bi bi-box-arrow-in-right me-1"></i> เข้าสู่ระบบ</a>
-                        <?php if (setting('allow_register', '1') === '1'): ?>
-                            <a href="<?= e(url('auth/register.php')) ?>" class="btn btn-outline-light btn-lg px-4">
-                                <i class="bi bi-person-plus me-1"></i> สมัครสมาชิก</a>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </div>
+                    </div>
+                <?php endif; ?>
             </div>
             <?php // ภาพประกอบ Hero: วางไฟล์ไว้ที่ assets/img/hero-classroom.png (ไม่มีไฟล์ = ไม่แสดง) ?>
             <?php if (is_file(APP_ROOT . '/assets/img/hero-classroom.png')): ?>
