@@ -245,16 +245,28 @@ function designated_reviewers(string $type): array
     );
 }
 
+/** หัวหน้าแผนกตรวจโครงการสอนและแผนการจัดการเรียนรู้ของตนเองได้ */
+function can_review_own_submission(array $user, string $type): bool
+{
+    return $user['role'] === 'supervisor'
+        && $type === 'lesson_plan'
+        && (int)$user['department_id'] > 0;
+}
+
 /**
  * ผู้ใช้ตรวจงานนี้ได้หรือไม่
  * - admin ตรวจได้ทุกงาน
  * - ผู้ตรวจตามตำแหน่ง ตรวจงานประเภทนั้นได้ทุกแผนก (ยกเว้นงานของตนเอง)
- * - supervisor ตรวจได้เฉพาะครูในแผนกตนเอง และไม่ตรวจงานของตนเอง
+ * - supervisor ตรวจได้เฉพาะครูในแผนกตนเอง รวมงานของตนเองเฉพาะโครงการสอน/แผนฯ
  */
 function can_review_submission(array $user, array $sub): bool
 {
     if ($user['role'] === 'admin') {
         return is_full_admin($user) || (isset($sub['_type']) && admin_can($user, submission_admin_perm($sub['_type'])));
+    }
+    if ((int)$sub['teacher_id'] === (int)$user['id']) {
+        return can_review_own_submission($user, $sub['_type'] ?? '')
+            && (int)$sub['department_id'] === (int)$user['department_id'];
     }
     if (isset($sub['_type']) && is_designated_reviewer($user, $sub['_type'])) {
         return (int)$sub['teacher_id'] !== (int)$user['id'];

@@ -38,7 +38,7 @@ if (is_post()) {
     $plan = $loadPlan((int)post('plan_id'));
     if (!can_evaluate_plan($user, $plan)) {
         log_activity('access_denied', 'พยายามประเมินแผนการจัดการเรียนรู้ #' . (int)$plan['id'] . ' นอกขอบเขต');
-        abort_page(403, 'ไม่มีสิทธิ์ประเมินแผนนี้', 'หัวหน้าแผนกประเมินได้เฉพาะแผนของครูในแผนกตนเอง และไม่ประเมินแผนของตนเอง');
+        abort_page(403, 'ไม่มีสิทธิ์ประเมินแผนนี้', 'หัวหน้าแผนกประเมินได้เฉพาะแผนของครูในแผนกตนเอง รวมแผนของตนเอง');
     }
 
     if (post('action') === 'delete') {
@@ -203,7 +203,7 @@ if (get_int('evaluate') > 0) {
     <?php endif; ?>
 
     <div class="row g-3">
-    <!-- ฝั่งซ้าย: ไฟล์แผนการจัดการเรียนรู้ (จอกว้างแสดง PDF ในหน้า ติดอยู่กับที่ขณะเลื่อนแบบประเมิน) -->
+    <!-- ฝั่งซ้าย: ไฟล์แผนการจัดการเรียนรู้ (จอกว้างแสดง PDF/DOCX คู่กับแบบประเมิน) -->
     <div class="col-xl-5" id="planFileCol">
         <div class="card plan-file-panel mb-0">
             <div class="card-header d-flex flex-wrap align-items-center gap-2">
@@ -212,6 +212,7 @@ if (get_int('evaluate') > 0) {
                     <select id="planFileSel" class="form-select form-select-sm w-auto ms-auto" aria-label="เลือกไฟล์แผน">
                         <?php foreach ($planFiles as $f): ?>
                             <option value="<?= (int)$f['id'] ?>" data-pdf="<?= strtolower(pathinfo($f['stored_name'], PATHINFO_EXTENSION)) === 'pdf' ? 1 : 0 ?>"
+                                    data-docx="<?= strtolower(pathinfo($f['stored_name'], PATHINFO_EXTENSION)) === 'docx' ? 1 : 0 ?>"
                                     data-name="<?= e($f['original_name']) ?>" <?= (int)$f['version'] === (int)$plan['current_version'] ? 'selected' : '' ?>>
                                 ฉบับที่ <?= (int)$f['version'] ?><?= (int)$f['version'] === (int)$plan['current_version'] ? ' (ล่าสุด)' : '' ?> · <?= e(str_limit($f['original_name'], 40)) ?>
                             </option>
@@ -229,12 +230,12 @@ if (get_int('evaluate') > 0) {
                     <iframe id="planFileFrame" title="ไฟล์แผนการจัดการเรียนรู้" class="flex-fill w-100 border-0"></iframe>
                     <div id="planFileNoPreview" class="d-none p-4 text-center text-muted">
                         <i class="bi bi-file-earmark-word display-5 d-block mb-2"></i>
-                        ไฟล์นี้ไม่ใช่ PDF จึงแสดงในหน้าไม่ได้<br>กด <i class="bi bi-download"></i> ดาวน์โหลด แล้วเปิดดูด้วยโปรแกรมในเครื่อง
+                        ไฟล์ชนิดนี้ยังแสดงตัวอย่างไม่ได้<br>กด <i class="bi bi-download"></i> ดาวน์โหลด แล้วเปิดดูด้วยโปรแกรมในเครื่อง
                     </div>
                 </div>
                 <div class="card-body small text-muted d-xl-none py-2">
                     บนมือถือ/แท็บเล็ต กด <i class="bi bi-box-arrow-up-right"></i> เพื่อเปิดไฟล์แผนในแท็บใหม่ แล้วสลับกลับมาประเมินในหน้านี้
-                    (บนคอมพิวเตอร์จอกว้าง ไฟล์ PDF จะแสดงคู่กับแบบประเมิน)
+                    (บนคอมพิวเตอร์จอกว้าง ไฟล์ PDF และ DOCX จะแสดงคู่กับแบบประเมิน)
                 </div>
             <?php endif; ?>
         </div>
@@ -492,19 +493,22 @@ if (get_int('evaluate') > 0) {
         }
         document.querySelectorAll(".score-input, .check-input").forEach(function (r) { r.addEventListener("change", calc); });
         calc();
-        // แผงไฟล์แผน: เลือกฉบับ / แสดง PDF ในหน้า (เฉพาะจอกว้าง) / ซ่อน-แสดงแผง
+        // แผงไฟล์แผน: เลือกฉบับ / แสดง PDF และ DOCX ในหน้า / ซ่อน-แสดงแผง
         var sel = document.getElementById("planFileSel");
         if (sel) {
             var base = ' . json_encode(url('file.php?id=')) . ', wide = window.matchMedia("(min-width: 1200px)");
+            // แสดงเฉพาะเอกสาร: ปิดเครื่องมือ/ภาพย่อ และขยายให้พอดีความกว้าง
+            var pdfView = "#toolbar=0&navpanes=0&pagemode=none&view=FitH";
             var frame = document.getElementById("planFileFrame"), noPrev = document.getElementById("planFileNoPreview");
             var showFile = function () {
-                var opt = sel.options[sel.selectedIndex], pdf = opt.getAttribute("data-pdf") === "1";
-                document.getElementById("planFileOpen").href = base + opt.value + (pdf ? "&inline=1" : "");
+                var opt = sel.options[sel.selectedIndex], pdf = opt.getAttribute("data-pdf") === "1", word = opt.getAttribute("data-docx") === "1";
+                var preview = pdf || word, previewUrl = base + opt.value + (pdf ? "&inline=1" + pdfView : (word ? "&preview=1" : ""));
+                document.getElementById("planFileOpen").href = previewUrl;
                 document.getElementById("planFileDl").href = base + opt.value;
-                frame.classList.toggle("d-none", !pdf);
-                noPrev.classList.toggle("d-none", pdf);
-                // โหลด PDF เข้า iframe เฉพาะจอกว้าง (มือถือบางรุ่นจะดาวน์โหลดไฟล์แทนการแสดง)
-                var src = pdf && wide.matches ? base + opt.value + "&inline=1" : "about:blank";
+                frame.classList.toggle("d-none", !preview);
+                noPrev.classList.toggle("d-none", preview);
+                // โหลดตัวอย่างเข้า iframe เฉพาะจอกว้าง มือถือเปิดผ่านปุ่มแท็บใหม่
+                var src = preview && wide.matches ? previewUrl : "about:blank";
                 if (frame.getAttribute("src") !== src) { frame.setAttribute("src", src); }
             };
             sel.addEventListener("change", showFile);
@@ -546,7 +550,7 @@ $stateSql = [
 ][$state] ?? '';
 $rows = db_all(
     "SELECT lp.id, lp.subject_code, lp.subject_name, lp.level, lp.status, lp.is_late, lp.current_version, lp.submitted_at, lp.teacher_id,
-            CONCAT(u.prefix, u.first_name, ' ', u.last_name) AS teacher_name, d.name AS department_name,
+            CONCAT(u.prefix, u.first_name, ' ', u.last_name) AS teacher_name, d.name AS department_name, u.department_id, lp.doc_type,
             pe.id AS eval_id, pe.avg_score, pe.is_passed, pe.decision, pe.plan_version, pe.acknowledged_at, pe.status AS eval_status,
             CONCAT(ev.prefix, ev.first_name, ' ', ev.last_name) AS evaluator_name
      FROM lesson_plans lp
@@ -577,7 +581,7 @@ require APP_ROOT . '/includes/header.php';
 ?>
 <div class="alert alert-light border small"><i class="bi bi-info-circle me-1 text-accent"></i>
     <?= $scopeAll ? 'ท่านประเมินแผนการจัดการเรียนรู้ได้ทุกแผนกวิชา' : 'ท่านประเมินแผนการจัดการเรียนรู้ได้เฉพาะ ' . e($user['department_name'] ?? 'แผนกของท่าน') ?>
-    · แสดงเฉพาะเอกสารประเภท "แผนการจัดการเรียนรู้" ที่ครูส่งในระบบ (แผนละ 1 ผลประเมิน) · ไม่สามารถประเมินแผนของตนเองได้</div>
+    · แสดงเฉพาะเอกสารประเภท "แผนการจัดการเรียนรู้" ที่ครูส่งในระบบ (แผนละ 1 ผลประเมิน) · <?= $user['role'] === 'supervisor' ? 'หัวหน้าแผนกประเมินแผนของตนเองได้' : 'ไม่สามารถประเมินแผนของตนเองได้' ?></div>
 
 <div class="card mb-4">
     <div class="card-body">
@@ -628,7 +632,7 @@ require APP_ROOT . '/includes/header.php';
             <table class="table table-hover datatable" data-order="[]">
                 <thead><tr><th>ครูผู้สอน</th><th>แผนก</th><th>รายวิชา</th><th>ส่งเมื่อ</th><th>สถานะงาน</th><th>ผลประเมิน</th><th>ผู้ประเมิน</th><th class="no-sort"></th></tr></thead>
                 <tbody>
-                <?php foreach ($rows as $r): $own = (int)$r['teacher_id'] === $uid; ?>
+                <?php foreach ($rows as $r): $canEvaluate = can_evaluate_plan($user, $r); ?>
                     <tr>
                         <td><?= e($r['teacher_name']) ?></td>
                         <td class="small"><?= e(preg_replace('/^แผนกวิชา/u', '', (string)$r['department_name'])) ?></td>
@@ -645,11 +649,11 @@ require APP_ROOT . '/includes/header.php';
                         </td>
                         <td class="small"><?= e($r['evaluator_name'] ?? '-') ?></td>
                         <td class="text-end text-nowrap">
-                            <?php if ($r['eval_id'] && $r['eval_status'] === 'draft' && !$own): ?>
+                            <?php if ($r['eval_id'] && $r['eval_status'] === 'draft' && $canEvaluate): ?>
                                 <a href="<?= e(url($self . '?evaluate=' . (int)$r['id'])) ?>" class="btn btn-sm btn-outline-warning text-dark"><i class="bi bi-pencil"></i> ประเมินต่อ</a>
                             <?php elseif ($r['eval_id']): ?>
                                 <a href="<?= e(url($self . '?view=' . (int)$r['id'])) ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> ดูผล</a>
-                            <?php elseif (!$own): ?>
+                            <?php elseif ($canEvaluate): ?>
                                 <a href="<?= e(url($self . '?evaluate=' . (int)$r['id'])) ?>" class="btn btn-sm btn-accent"><i class="bi bi-clipboard-check"></i> ประเมิน</a>
                             <?php else: ?><span class="small text-muted">แผนของท่าน</span><?php endif; ?>
                         </td>

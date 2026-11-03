@@ -55,14 +55,19 @@ function plan_eval_report_scope(array $user): ?int
 
 /**
  * ผู้ใช้ประเมิน (บันทึก/แก้ไข) แผนนี้ได้หรือไม่ — ตรวจฝั่งเซิร์ฟเวอร์ทุกครั้งที่บันทึก
- * - เฉพาะเอกสารประเภทแผนการจัดการเรียนรู้ และไม่ประเมินแผนของตนเอง
+ * - เฉพาะเอกสารประเภทแผนการจัดการเรียนรู้ หัวหน้าแผนกประเมินแผนของตนเองได้
  * - admin / หัวหน้างานพัฒนาหลักสูตรฯ : ทุกแผนก
  * - หัวหน้าแผนก : เฉพาะครูในแผนกตนเอง (ตามแผนกปัจจุบันของครู)
  */
 function can_evaluate_plan(array $user, array $plan): bool
 {
-    if (($plan['doc_type'] ?? '') !== 'plan' || (int)$plan['teacher_id'] === (int)$user['id']) {
+    if (($plan['doc_type'] ?? '') !== 'plan') {
         return false;
+    }
+    if ((int)$plan['teacher_id'] === (int)$user['id']) {
+        return $user['role'] === 'supervisor'
+            && (int)$user['department_id'] > 0
+            && (int)$plan['department_id'] === (int)$user['department_id'];
     }
     if (plan_eval_scope_all($user)) {
         return true;

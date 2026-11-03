@@ -27,4 +27,8 @@ $inline = get('inline') === '1' && $ext === 'pdf';
 
 log_activity('download_file', 'เปิดไฟล์ ' . submission_type_label($file['submission_type'])
     . ' #' . (int)$file['submission_id'] . ' v' . (int)$file['version']);
+if (get('preview') === '1' && $ext === 'docx') {
+    require APP_ROOT . '/includes/partials/docx_preview.php';
+    exit;
+}
 send_file($file['file_dir'], $file['stored_name'], $file['original_name'], $inline);

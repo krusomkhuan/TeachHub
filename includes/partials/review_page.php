@@ -9,11 +9,12 @@
  *
  * ขอบเขตข้อมูล:
  *   - admin      : ทุกแผนก
- *   - supervisor : เฉพาะครูในแผนกตนเอง และไม่รวมงานของตนเอง
+ *   - supervisor : เฉพาะครูในแผนกตนเอง รวมงานของตนเองเฉพาะโครงการสอน/แผนฯ
  *
  * พารามิเตอร์: ?id= (ตรวจงาน), ?status=, ?round_id=, ?ay=, ?dept= (admin), ?q=
  */
 $isAdmin = $user['role'] === 'admin';
+$includeOwn = $isAdmin || can_review_own_submission($user, $type);
 // ผู้ตรวจตามตำแหน่ง (เช่น หัวหน้างานบุคลากร สำหรับ PA) เห็นงานประเภทนี้ทุกแผนก
 $isDesignated = is_designated_reviewer($user, $type);
 $scopeAll = $isAdmin || $isDesignated;
@@ -57,7 +58,7 @@ if (is_post()) {
              WHERE s.status = 'pending' AND s.id <> ? AND (? = 0 OR u.department_id = ?) AND (? = 1 OR s.teacher_id <> ?)
              ORDER BY s.submitted_at LIMIT 1",
             'iiiii',
-            [(int)$sub['id'], $deptScope, $deptScope, $isAdmin ? 1 : 0, (int)$user['id']]
+            [(int)$sub['id'], $deptScope, $deptScope, $includeOwn ? 1 : 0, (int)$user['id']]
         );
         redirect($self . ($next ? '?id=' . (int)$next : '?status=pending'));
     }
@@ -70,7 +71,7 @@ if (is_post()) {
 $viewId = get_int('id');
 if ($viewId > 0) {
     $sub = submission_fetch($type, $viewId);
-    if (!$sub || !can_view_submission($user, $sub) || (!$isAdmin && (int)$sub['teacher_id'] === (int)$user['id'])) {
+    if (!$sub || !can_view_submission($user, $sub) || (!$includeOwn && (int)$sub['teacher_id'] === (int)$user['id'])) {
         abort_page(404, 'ไม่พบงาน', 'งานนี้ไม่มีอยู่ หรืออยู่นอกขอบเขตที่ท่านตรวจได้');
     }
     $canReview = can_review_submission($user, $sub) && ($isAdmin || $sub['status'] === 'pending');
@@ -171,7 +172,7 @@ if ($fDept > 0 || !$scopeAll) {
     $types .= 'i';
     $params[] = $fDept;
 }
-if (!$isAdmin) {
+if (!$includeOwn) {
     $where[] = 's.teacher_id <> ?';
     $types .= 'i';
     $params[] = (int)$user['id'];
@@ -225,10 +226,10 @@ require APP_ROOT . '/includes/header.php';
 ?>
 <?php if ($isDesignated && !$isAdmin): ?>
     <div class="alert alert-light border small"><i class="bi bi-person-check me-1"></i>
-        ท่านเป็นผู้ตรวจ<?= e(submission_type_label($type)) ?>ตามตำแหน่ง “<?= e($user['position']) ?>” — แสดงงานของครูทุกแผนก (ยกเว้นงานของท่านเอง)</div>
+        ท่านเป็นผู้ตรวจ<?= e(submission_type_label($type)) ?>ตามตำแหน่ง “<?= e($user['position']) ?>” — แสดงงานของครูทุกแผนก (<?= $includeOwn ? 'รวมงานของท่านเอง ซึ่งท่านสามารถตรวจได้' : 'ยกเว้นงานของท่านเอง' ?>)</div>
 <?php elseif (!$isAdmin): ?>
     <div class="alert alert-light border small"><i class="bi bi-info-circle me-1"></i>
-        แสดงเฉพาะงานของครูใน<?= e($user['department_name'] ?? 'แผนก') ?> (งานของท่านเองจะตรวจโดยผู้ตรวจตามตำแหน่งหรือผู้ดูแลระบบ)</div>
+        แสดงเฉพาะงานของครูใน<?= e($user['department_name'] ?? 'แผนก') ?> (<?= $includeOwn ? 'รวมงานของท่านเอง ซึ่งท่านสามารถตรวจได้' : 'งานของท่านเองจะตรวจโดยผู้ตรวจตามตำแหน่งหรือผู้ดูแลระบบ' ?>)</div>
 <?php endif; ?>
 
 <!-- ชิปสถานะ -->
