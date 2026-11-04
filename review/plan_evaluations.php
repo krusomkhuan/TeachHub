@@ -642,7 +642,8 @@ require APP_ROOT . '/includes/header.php';
                         <td data-order="<?= $r['eval_id'] ? e($r['avg_score']) : -1 ?>">
                             <?php if ($r['eval_id']): ?>
                                 <?php if ($r['eval_status'] === 'final'): ?>
-                                    <?= plan_eval_level_badge((float)$r['avg_score']) ?> <?= plan_eval_pass_badge((bool)$r['is_passed']) ?>
+                                    <?= plan_eval_level_badge((float)$r['avg_score']) ?>
+                                    <?php if ($r['is_passed']): ?><?= plan_eval_pass_badge(true) ?><?php endif; ?>
                                 <?php else: ?><?= plan_eval_status_badge('draft') ?><?php endif; ?>
                                 <?php if ((int)$r['plan_version'] !== (int)$r['current_version']): ?><div class="small text-warning">ประเมินฉบับที่ <?= (int)$r['plan_version'] ?> · มีฉบับใหม่</div><?php endif; ?>
                             <?php else: ?><span class="badge bg-secondary">ยังไม่ประเมิน</span><?php endif; ?>

@@ -37,7 +37,7 @@ function is_advisor_staff(array $user): bool
 function is_privileged_position(string $position): bool
 {
     return is_reviewer_position($position) || is_hr_staff_position($position)
-        || in_array(normalize_position($position), advisor_staff_positions(), true);
+        || in_array(normalize_position($position), staff_role_positions(), true);
 }
 
 /** ตำแหน่งที่เห็นเฉพาะเมนูงานครูที่ปรึกษา (ไม่เห็นเมนูส่งงาน/นิเทศของครู) */
@@ -344,7 +344,9 @@ function advisor_summary(?array $ay, int $deptId = 0, int $teacherId = 0, ?array
     $groups = db_all(
         "SELECT g.id, g.teacher_id, g.group_name, u.prefix, u.first_name, u.last_name, d.name AS department_name
          FROM advisor_groups g JOIN users u ON u.id = g.teacher_id LEFT JOIN departments d ON d.id = g.department_id
-         WHERE g.academic_year_id = ? AND (? = 0 OR g.department_id = ?) AND (? = 0 OR g.teacher_id = ?)
+         WHERE g.academic_year_id = ? AND (? = 0 OR g.department_id = ?) AND (? = 0 OR g.teacher_id = ?)"
+            // สรุปรวมตัดเจ้าหน้าที่งานพัฒนาหลักสูตรฯ / สรุปรายคน (ระบุ $teacherId) ยังเปิดดูข้อมูลเดิมได้
+            . ($teacherId ? '' : curriculum_staff_exclude_sql('g.teacher_id')) . "
          ORDER BY d.name, u.first_name, g.group_name",
         'iiiii',
         [(int)$ay['id'], $deptId, $deptId, $teacherId, $teacherId]

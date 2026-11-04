@@ -26,4 +26,12 @@ if ($user['role'] === 'supervisor') {
             <a href="<?= e(url('reports/supervision_reports.php?tab=mine')) ?>" class="btn btn-sm btn-warning ms-auto">พิจารณา</a>
         </div>
     <?php endif;
+    $alertN = pe_report_pending_count((int)$user['id']);
+    if ($alertN > 0): ?>
+        <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+            <i class="bi bi-file-earmark-check fs-5"></i>
+            <span>มีรายงานสรุปผลการประเมินแผนฯ รอท่านพิจารณา <strong><?= $alertN ?></strong> ฉบับ</span>
+            <a href="<?= e(url('reports/plan_eval_reports.php?tab=mine')) ?>" class="btn btn-sm btn-warning ms-auto">พิจารณา</a>
+        </div>
+    <?php endif;
 }

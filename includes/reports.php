@@ -71,7 +71,7 @@ function report_submission_rows(string $type, array $f): array
             SELECT x.* FROM `$table` x JOIN submission_rounds r ON r.id = x.round_id
             WHERE (? = 0 OR x.round_id = ?) AND (? = 0 OR r.academic_year_id = ?)$docSql
          ) s ON s.teacher_id = u.id
-         WHERE u.status = 'active' AND u.role IN ('teacher','supervisor') AND (? = 0 OR u.department_id = ?)
+         WHERE u.status = 'active' AND u.role IN ('teacher','supervisor') AND (? = 0 OR u.department_id = ?)" . curriculum_staff_exclude_sql() . "
          GROUP BY u.id, u.prefix, u.first_name, u.last_name, u.department_id, d.name
          ORDER BY d.name, u.first_name",
         'iiiiii',

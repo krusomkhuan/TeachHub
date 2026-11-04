@@ -56,7 +56,7 @@ $editId = get_int('edit') ?: (int)post('id');
 $editing = $editId ? db_one('SELECT * FROM departments WHERE id = ?', 'i', [$editId]) : null;
 $rows = db_all(
     "SELECT d.*,
-        (SELECT COUNT(*) FROM users u WHERE u.department_id = d.id AND u.status = 'active' AND u.role IN ('teacher','supervisor')) AS teachers,
+        (SELECT COUNT(*) FROM users u WHERE u.department_id = d.id AND u.status = 'active' AND u.role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql() . ") AS teachers,
         (SELECT COUNT(*) FROM users u WHERE u.department_id = d.id AND u.role = 'supervisor' AND u.status = 'active') AS heads,
         (SELECT COUNT(*) FROM subjects s WHERE s.department_id = d.id) AS subjects,
         (SELECT COUNT(*) FROM users u WHERE u.department_id = d.id) AS all_users

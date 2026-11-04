@@ -47,4 +47,41 @@ check_lock(false, $ip, 4, 'real-user', 'Unknown names do not block existing acco
 check_lock(false, '192.0.2.2', null, 'missinguser', 'Unknown names are also separated by IP');
 check_lock(false, $ip, null, str_repeat('a', 50) . 'two', 'Long names with the same prefix remain separate');
 
+function add_success(int $userId, string $ip, int $minutesAgo): void
+{
+    db_exec('INSERT INTO activity_logs (user_id, action, detail, ip_address, created_at)
+        VALUES (?, ?, ?, ?, NOW() - INTERVAL ? MINUTE)', 'isssi',
+        [$userId, 'login', 'เข้าสู่ระบบสำเร็จ', $ip, $minutesAgo]);
+}
+
+// ล็อกอินสำเร็จแล้วต้องเริ่มนับใหม่
+for ($i = 0; $i < 4; $i++) {
+    add_failure(5, 'reset-user', $ip, 3);
+}
+add_success(5, $ip, 2);
+add_failure(5, 'reset-user', $ip, 1);
+check_lock(false, $ip, 5, 'reset-user', 'A successful login resets earlier failures');
+for ($i = 0; $i < 4; $i++) {
+    add_failure(5, 'reset-user', $ip, 1);
+}
+check_lock(true, $ip, 5, 'reset-user', 'Five new failures after a success lock again');
+
+// สำเร็จจาก IP อื่นต้องไม่ปลดล็อก IP ที่กำลังเดารหัสผ่าน
+for ($i = 0; $i < 5; $i++) {
+    add_failure(6, 'other-ip-user', $ip, 2);
+}
+add_success(6, '192.0.2.9', 1);
+check_lock(true, $ip, 6, 'other-ip-user', 'A success from another IP does not unlock this IP');
+
+// เวลารอที่แจ้งผู้ใช้ต้องตรงกับเวลาปลดล็อกจริง
+$wait = login_lock_seconds($ip, 6, 'other-ip-user');
+if ($wait < 170 || $wait > 180) {
+    throw new RuntimeException("Expected about 180 seconds remaining, got $wait");
+}
+echo "PASS: Remaining wait follows the oldest counted failure\n";
+if (login_lock_seconds($ip, 7, 'nobody') !== 0) {
+    throw new RuntimeException('An account without failures must have no wait');
+}
+echo "PASS: An account without failures has no wait\n";
+
 db()->query('DROP TEMPORARY TABLE activity_logs');

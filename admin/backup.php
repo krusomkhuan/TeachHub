@@ -2,7 +2,7 @@
 /**
  * ไฟล์: admin/backup.php
  * สำรองข้อมูล / กู้คืนข้อมูล (เฉพาะผู้ดูแลระบบ)
- *   - สร้างไฟล์สำรอง (ฐานข้อมูล + เลือกรวมไฟล์แนบได้) เก็บบนเซิร์ฟเวอร์ ดาวน์โหลดเก็บไว้นอกเครื่องได้
+ *   - สร้างไฟล์สำรอง (ฐานข้อมูล + ไฟล์แนบทั้งหมดบนเซิร์ฟเวอร์) ดาวน์โหลดเก็บไว้นอกเครื่องได้
  *   - กู้คืนจากไฟล์บนเซิร์ฟเวอร์ หรืออัปโหลดไฟล์สำรอง (.zip) — ต้องยืนยันรหัสผ่าน และระบบสำรองข้อมูลปัจจุบันให้ก่อนเสมอ
  *   - สำรองอัตโนมัติวันละครั้ง (ทำงานเมื่อผู้ดูแลระบบเปิดแดชบอร์ด) เก็บไว้ตามจำนวนที่กำหนด
  *   ?download=ชื่อไฟล์  ดาวน์โหลดไฟล์สำรอง
@@ -54,16 +54,10 @@ if (is_post()) {
 
     // ---------- สร้างไฟล์สำรอง ----------
     if ($action === 'create') {
-        $res = backup_create(isset($_POST['with_files']), post('note'));
+        $res = backup_create(true, post('note'));
         if ($res['ok']) {
             log_activity('backup_create', 'สร้างไฟล์สำรอง ' . $res['name']);
-            $driveErr = drive_backup_copy($res['name']);
-            if (drive_file_row('backups', $res['name'])) {
-                flash('success', 'สร้างไฟล์สำรอง ' . $res['name'] . ' เรียบร้อยแล้ว และส่งสำเนาไปโฟลเดอร์ “สำรองข้อมูล” ใน Google Drive แล้ว');
-            } else {
-                flash($driveErr !== '' ? 'warning' : 'success', 'สร้างไฟล์สำรอง ' . $res['name'] . ' เรียบร้อยแล้ว'
-                    . ($driveErr !== '' ? ' แต่ส่งสำเนาขึ้น Google Drive ไม่สำเร็จ: ' . $driveErr : ' — แนะนำให้ดาวน์โหลดเก็บไว้นอกเซิร์ฟเวอร์ด้วย'));
-            }
+            flash('success', 'สร้างไฟล์สำรอง ' . $res['name'] . ' พร้อมฐานข้อมูลและไฟล์ทั้งหมดบนเซิร์ฟเวอร์แล้ว กดดาวน์โหลดเพื่อเก็บไว้ในคอมพิวเตอร์');
         } else {
             flash('error', $res['error']);
         }
@@ -74,7 +68,7 @@ if (is_post()) {
     if ($action === 'settings') {
         $keep = max(1, min(60, (int)post('backup_keep')));
         setting_save('backup_auto', isset($_POST['backup_auto']) ? '1' : '0');
-        setting_save('backup_auto_files', isset($_POST['backup_auto_files']) ? '1' : '0');
+        setting_save('backup_auto_files', '1');
         setting_save('backup_keep', (string)$keep);
         log_activity('settings_update', 'ตั้งค่าสำรองข้อมูลอัตโนมัติ');
         flash('success', 'บันทึกการตั้งค่าสำรองอัตโนมัติแล้ว');
@@ -87,8 +81,7 @@ if (is_post()) {
         if ($path) {
             @unlink($path);
             log_activity('backup_delete', 'ลบไฟล์สำรอง ' . basename($path));
-            flash('success', 'ลบไฟล์สำรอง ' . basename($path) . ' แล้ว'
-                . (drive_file_row('backups', basename($path)) ? ' (สำเนาในโฟลเดอร์ “สำรองข้อมูล” ของ Google Drive ยังอยู่)' : ''));
+            flash('success', 'ลบไฟล์สำรอง ' . basename($path) . ' แล้ว');
         }
         redirect($self);
     }
@@ -171,14 +164,12 @@ require APP_ROOT . '/includes/header.php';
         <div class="card h-100">
             <div class="card-header"><i class="bi bi-cloud-arrow-down me-2"></i>สร้างไฟล์สำรองตอนนี้</div>
             <div class="card-body">
-                <p class="small text-muted mb-3">ขนาดปัจจุบัน: ฐานข้อมูลประมาณ <?= e(format_bytes($dbSize)) ?> · ไฟล์แนบ <?= e(format_bytes((int)$filesSize)) ?></p>
+                <p class="small text-muted mb-3">ขนาดปัจจุบัน: ฐานข้อมูลประมาณ <?= e(format_bytes($dbSize)) ?> · ไฟล์แนบบนเซิร์ฟเวอร์ <?= e(format_bytes((int)$filesSize)) ?></p>
                 <form method="post" data-confirm="สร้างไฟล์สำรองข้อมูลตอนนี้?">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="create">
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" role="switch" name="with_files" id="with_files" value="1" checked>
-                        <label class="form-check-label" for="with_files">รวมไฟล์แนบ (แผน/PA/วิจัย/รูปนิเทศ/รูปโปรไฟล์/เอกสารดาวน์โหลด)</label>
-                    </div>
+                    <p class="small mb-2"><i class="bi bi-paperclip me-1"></i>รวมไฟล์ที่อัปโหลดทุกครั้ง ทั้งเอกสาร รูปภาพ งานบุคลากร และไฟล์แนบอื่น ๆ บนเซิร์ฟเวอร์</p>
+                    <p class="form-text mb-3">หากอ่านไฟล์ไม่ครบ ระบบจะแจ้งว่าสำรองไม่สำเร็จ · ไม่รวมไฟล์สำรองเดิมและไฟล์ Log</p>
                     <div class="mb-3">
                         <label class="form-label small" for="note">บันทึกช่วยจำ (ไม่บังคับ)</label>
                         <input class="form-control" name="note" id="note" maxlength="200" placeholder="เช่น ก่อนเปิดภาคเรียน 1/2570">
@@ -199,12 +190,9 @@ require APP_ROOT . '/includes/header.php';
                     <input type="hidden" name="action" value="settings">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" role="switch" name="backup_auto" id="backup_auto" value="1" <?= setting('backup_auto', '0') === '1' ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="backup_auto">สำรองฐานข้อมูลวันละครั้งโดยอัตโนมัติ</label>
+                        <label class="form-check-label" for="backup_auto">สำรองฐานข้อมูลและไฟล์ที่อัปโหลดวันละครั้งโดยอัตโนมัติ</label>
                     </div>
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" role="switch" name="backup_auto_files" id="backup_auto_files" value="1" <?= setting('backup_auto_files', '0') === '1' ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="backup_auto_files">รวมไฟล์แนบด้วย (ใช้พื้นที่มากขึ้น)</label>
-                    </div>
+                    <p class="form-text mb-2">รวมไฟล์ทั้งหมดบนเซิร์ฟเวอร์เสมอ อาจใช้เวลาและพื้นที่มากขึ้นตามจำนวนไฟล์</p>
                     <div class="input-group mb-2" style="max-width:320px">
                         <span class="input-group-text">เก็บไว้ล่าสุด</span>
                         <input type="number" class="form-control" name="backup_keep" min="1" max="60" value="<?= e((string)setting('backup_keep', '7')) ?>">
@@ -310,8 +298,7 @@ require APP_ROOT . '/includes/header.php';
                 </tbody>
             </table>
         </div>
-        <div class="form-text">ไฟล์สำรองเก็บที่ uploads/backups (เข้าถึงผ่านเว็บโดยตรงไม่ได้) · ควรดาวน์โหลดเก็บไว้นอกเซิร์ฟเวอร์อย่างสม่ำเสมอ เช่น Google Drive ของงาน<?php if (drive_table_ready() && ($nDrive = (int)db_value("SELECT COUNT(*) FROM drive_files WHERE subdir <> 'backups'")) > 0): ?>
-            · ไฟล์แนบที่เก็บใน Google Drive (<?= number_format($nDrive) ?> ไฟล์) ไม่รวมอยู่ในไฟล์สำรอง — ยังอยู่ใน Drive และฐานข้อมูลเก็บตำแหน่งไว้<?php endif; ?></div>
+        <div class="form-text">ไฟล์สำรอง ZIP รวมฐานข้อมูลและไฟล์แนบทั้งหมดบนเซิร์ฟเวอร์ เก็บที่ uploads/backups (เปิดตรงผ่านเว็บไม่ได้) · กดดาวน์โหลดเพื่อบันทึกในพีซีของคุณ ไม่เชื่อมต่อ Google Drive · ไม่รวม ZIP สำรองเดิมและไฟล์ Log</div>
     </div>
 </div>
 <?php require APP_ROOT . '/includes/footer.php'; ?>

@@ -174,7 +174,7 @@ require APP_ROOT . '/includes/header.php';
                 r.id, r.meet_date, r.status, r.is_late, r.total_students, r.present_count, r.late_count
          FROM advisor_groups g JOIN users u ON u.id = g.teacher_id LEFT JOIN departments d ON d.id = g.department_id
          LEFT JOIN advisor_reports r ON r.group_id = g.id AND r.meet_date BETWEEN ? AND ?
-         WHERE g.academic_year_id = ? AND (? = 0 OR g.department_id = ?)
+         WHERE g.academic_year_id = ? AND (? = 0 OR g.department_id = ?)" . curriculum_staff_exclude_sql('g.teacher_id') . "
          ORDER BY (r.id IS NULL) DESC, d.name, u.first_name",
         'ssiii',
         [$wMon, $wSun, $ayId, $dept, $dept]

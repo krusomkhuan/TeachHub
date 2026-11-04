@@ -1,7 +1,8 @@
 <?php
 /**
  * ไฟล์: auth/register.php
- * หน้าสมัครสมาชิกสำหรับครู — สมัครแล้วสถานะ "รออนุมัติ" ต้องให้ admin อนุมัติก่อน
+ * หน้าสมัครสมาชิกสำหรับครู — สมัครแล้วเข้าใช้งานได้ทันทีด้วยสิทธิ์ครู
+ * (สิทธิ์ผู้บริหารไม่ให้อัตโนมัติจากตำแหน่งที่กรอกเอง ต้องให้ admin ตั้งที่หน้าจัดการผู้ใช้)
  */
 require_once __DIR__ . '/../config/config.php';
 
@@ -99,7 +100,7 @@ if (is_post()) {
             'INSERT INTO users (username, password_hash, prefix, first_name, last_name,
                                 department_id, position, email, phone, role, status, pdpa_version, pdpa_accepted_at,
                                 google_sub, password_login)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'teacher\', \'pending\', ?, NOW(), ?, ?)',
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'teacher\', \'active\', ?, NOW(), ?, ?)',
             'sssssisssssi',
             [
                 $data['username'], password_hash($password, PASSWORD_DEFAULT), $data['prefix'],
@@ -111,8 +112,16 @@ if (is_post()) {
         log_activity('register', 'สมัครสมาชิกใหม่: ' . $data['username'] . ($google ? ' (บัญชี Google)' : ''), $newId);
         unset($_SESSION['google_signup']);
 
-        flash('success', 'สมัครสมาชิกเรียบร้อยแล้ว กรุณารอผู้ดูแลระบบอนุมัติ จึงจะเข้าสู่ระบบได้');
-        redirect('auth/login.php');
+        // เข้าสู่ระบบให้ทันทีหลังสมัคร
+        $newUser = db_one('SELECT * FROM users WHERE id = ?', 'i', [$newId]);
+        login_user($newUser);
+
+        $welcome = 'สมัครสมาชิกเรียบร้อยแล้ว ยินดีต้อนรับ ' . full_name($newUser);
+        if ($isExec) {
+            $welcome .= ' — บัญชีใช้สิทธิ์ครูก่อน หากต้องการสิทธิ์ผู้บริหารกรุณาติดต่องานพัฒนาหลักสูตรฯ';
+        }
+        flash('success', $welcome);
+        redirect(dashboard_url($newUser['role']));
     }
 }
 
@@ -132,7 +141,7 @@ $authWide = true;
 require APP_ROOT . '/includes/auth_header.php';
 ?>
 <h3 class="auth-title"><i class="bi bi-person-plus me-1"></i> สมัครสมาชิก</h3>
-<p class="auth-subtitle">สำหรับครูผู้สอน — หลังสมัครแล้วต้องรอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน</p>
+<p class="auth-subtitle">สำหรับครูผู้สอน — สมัครแล้วเข้าใช้งานได้ทันที</p>
 
 <?php if ($errors): ?>
     <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i> กรุณาตรวจสอบข้อมูลที่ไม่ถูกต้อง</div>
@@ -187,7 +196,7 @@ require APP_ROOT . '/includes/auth_header.php';
                     <option value="<?= (int)$d['id'] ?>" <?= (int)post('department_id') === (int)$d['id'] ? 'selected' : '' ?>><?= e($d['name']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <div class="form-text d-none" id="deptHint">รองผู้อำนวยการไม่ต้องเลือกแผนกวิชา</div>
+            <div class="form-text d-none" id="deptHint">ผู้บริหารไม่ต้องเลือกแผนกวิชา · บัญชีใช้สิทธิ์ครูก่อน ผู้ดูแลระบบจะตั้งสิทธิ์ผู้บริหารให้ภายหลัง</div>
             <?= field_error($errors, 'department_id') ?>
         </div>
 
@@ -218,6 +227,7 @@ require APP_ROOT . '/includes/auth_header.php';
                    value="<?= $google ? e($google['email']) : old('email') ?>" maxlength="150" required autocomplete="email"
                    <?= $google ? 'readonly' : '' ?>>
             <?= field_error($errors, 'email') ?>
+            <div class="form-text">ใช้อีเมลองค์กรหรืออีเมลทั่วไปได้ เช่น Gmail, Outlook หรือ Yahoo</div>
         </div>
         <div class="col-md-6">
             <label class="form-label" for="phone">เบอร์โทรศัพท์ <span class="text-danger">*</span></label>

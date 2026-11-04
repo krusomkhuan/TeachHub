@@ -23,7 +23,7 @@ if (!$ay) {
 }
 
 // ---------- ข้อมูล ----------
-$teacherCount = (int)db_value("SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')");
+$teacherCount = (int)db_value("SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql('id'));
 $summary = stat_status_summary($ayId);
 unset($summary['pa']); // ปิดระบบ PA: ไม่แสดงในแดชบอร์ด
 $deptStats = stat_department_submission($ayId);

@@ -22,7 +22,7 @@ $stats['supervision'] = [
     'approved' => (int)db_value('SELECT COUNT(*) FROM supervision_results WHERE acknowledged_at IS NOT NULL'),
 ];
 $teacherCount = (int)db_value(
-    "SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')"
+    "SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql('id')
 );
 
 // ---------- รอบที่เปิดรับ / กำลังจะเปิด ----------

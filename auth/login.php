@@ -8,6 +8,7 @@ require_once __DIR__ . '/../config/config.php';
 redirect_if_logged_in();
 
 $error = '';
+$passwordHint = false; // แสดงคำแนะนำเรื่องลืมรหัสผ่านเมื่อใส่รหัสผิด
 $next = $_GET['next'] ?? $_POST['next'] ?? '';
 $next = is_string($next) ? $next : '';
 
@@ -27,8 +28,10 @@ if (is_post()) {
             [$login, $login]
         );
 
-        if (login_locked($ip, $user ? (int)$user['id'] : null, $login)) {
-            $error = 'บัญชีนี้เข้าสู่ระบบผิดพลาดหลายครั้งเกินไปจากเครือข่ายนี้ กรุณารอ 5 นาทีแล้วลองใหม่';
+        $lockSeconds = login_lock_seconds($ip, $user ? (int)$user['id'] : null, $login);
+        if ($lockSeconds > 0) {
+            $error = 'บัญชีนี้เข้าสู่ระบบผิดพลาดหลายครั้งเกินไปจากเครือข่ายนี้ กรุณารออีกประมาณ '
+                . (int)ceil($lockSeconds / 60) . ' นาทีแล้วลองใหม่ หากจำรหัสผ่านไม่ได้ให้ใช้เมนู “ลืมรหัสผ่าน”';
         } else {
             // ตรวจรหัสผ่าน (ถ้าไม่พบผู้ใช้ ยังเรียก password_verify เพื่อให้เวลาตอบสนองใกล้เคียงกัน)
             $dummyHash = '$2y$10$w1Um.4L0jJWMyJwBo6yBH.BrI1yUhE6eei5wrWd5dA0WjeWmlPsw6';
@@ -38,6 +41,7 @@ if (is_post()) {
                 $detail = $user ? 'ชื่อผู้ใช้: ' . mb_substr($login, 0, 50) : unknown_login_detail($login);
                 log_activity('login_failed', $detail, $user ? (int)$user['id'] : null);
                 $error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+                $passwordHint = true;
             } elseif ($user['status'] === 'pending') {
                 $error = 'บัญชีของท่านอยู่ระหว่างรออนุมัติจากผู้ดูแลระบบ';
             } elseif ($user['status'] === 'suspended') {
@@ -71,7 +75,18 @@ require APP_ROOT . '/includes/auth_header.php';
 <p class="auth-subtitle">สำหรับครูและบุคลากร <?= e(college_name()) ?></p>
 
 <?php if ($error): ?>
-    <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= e($error) ?></div>
+    <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= e($error) ?>
+        <?php if ($passwordHint): ?>
+            <div class="small mt-1">
+                <?php if (mail_enabled()): ?>
+                    หากจำรหัสผ่านไม่ได้ กด <a href="<?= e(url('auth/forgot_password.php')) ?>" class="alert-link">ลืมรหัสผ่าน</a>
+                    หากขอรหัสใหม่ไปแล้ว กรุณาตรวจสอบรหัสใหม่ในอีเมลที่ลงทะเบียนไว้ (รวมถึงโฟลเดอร์ Spam)
+                <?php else: ?>
+                    หากจำรหัสผ่านไม่ได้ กด <a href="<?= e(url('auth/forgot_password.php')) ?>" class="alert-link">ลืมรหัสผ่าน</a> เพื่อส่งคำขอให้ผู้ดูแลระบบรีเซ็ตรหัสผ่าน
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
 <?php endif; ?>
 
 <form method="post" action="<?= e(url('auth/login.php')) ?>" novalidate>

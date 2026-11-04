@@ -12,7 +12,7 @@ $evCats = plan_eval_category_summary($evItems['quality']);
     <div class="card-header d-flex flex-wrap align-items-center gap-2">
         <i class="bi bi-journal-text"></i> ข้อมูลทั่วไป
         <span class="ms-auto"><?= !$ev ? '<span class="badge bg-secondary">ยังไม่ประเมิน</span>'
-            : (plan_eval_is_final($ev) ? plan_eval_pass_badge((bool)$ev['is_passed']) : plan_eval_status_badge('draft')) ?></span>
+            : (plan_eval_is_final($ev) ? ($ev['is_passed'] ? plan_eval_pass_badge(true) : '') : plan_eval_status_badge('draft')) ?></span>
     </div>
     <div class="card-body">
         <div class="row g-3 small">
@@ -52,16 +52,6 @@ $evCats = plan_eval_category_summary($evItems['quality']);
                     <div class="mb-2">คะแนนรวม <?= (int)$ev['total_score'] ?>/<?= (int)$ev['max_score'] ?>
                         (ร้อยละ <?= percent((float)$ev['total_score'], (float)$ev['max_score']) ?>)</div>
                     <div class="fs-5 mb-2"><?= plan_eval_level_badge((float)$ev['avg_score']) ?></div>
-                    <div><?= plan_eval_pass_badge((bool)$ev['is_passed']) ?></div>
-                    <?php if (!$ev['check_passed']): ?><div class="small text-danger mt-1">ตอนที่ 1 รายการที่ต้องมียังไม่ครบ</div><?php endif; ?>
-                    <hr>
-                    <?php if (!plan_eval_is_final($ev)): ?>
-                        <div class="text-warning small"><i class="bi bi-pencil me-1"></i>ร่าง — ยังไม่ได้ส่งผลให้ครู</div>
-                    <?php elseif ($ev['acknowledged_at']): ?>
-                        <div class="text-success small"><i class="bi bi-check2-circle me-1"></i>ครูรับทราบผลแล้วเมื่อ<br><?= e(thai_datetime($ev['acknowledged_at'])) ?></div>
-                    <?php else: ?>
-                        <div class="text-warning small"><i class="bi bi-clock me-1"></i>ครูยังไม่ได้กดรับทราบผล</div>
-                    <?php endif; ?>
                 </div>
             </div>
         </div>

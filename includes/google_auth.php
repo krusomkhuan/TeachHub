@@ -4,10 +4,11 @@
  * เข้าสู่ระบบ / สมัครสมาชิกด้วยบัญชี Google (OAuth 2.0 Authorization Code + PKCE + state)
  *
  * ขั้นตอน: auth/google_login.php → หน้า Google → auth/google_callback.php
- *   - พบบัญชีที่เชื่อม Google ไว้แล้ว / อีเมลตรงกับบัญชีเดิม → เข้าสู่ระบบ (ถ้าอนุมัติแล้ว)
- *   - ยังไม่มีบัญชี → ไปหน้าสมัครสมาชิก กรอกข้อมูลเพิ่ม (แผนก ตำแหน่ง เบอร์โทร) แล้วรอ admin อนุมัติ
+ *   - พบบัญชีที่เชื่อม Google ไว้แล้ว → เข้าสู่ระบบ (ถ้าบัญชีไม่ได้ค้างรออนุมัติหรือถูกระงับ)
+ *   - อีเมลตรงกับบัญชีเดิมที่ยังไม่เชื่อม → ไม่เชื่อมอัตโนมัติ ให้เข้าด้วยรหัสผ่านแล้วเชื่อมที่หน้าโปรไฟล์
+ *   - ยังไม่มีบัญชี → ไปหน้าสมัครสมาชิก กรอกข้อมูลเพิ่ม (แผนก ตำแหน่ง เบอร์โทร) แล้วเข้าใช้งานได้ทันที
  * ตั้งค่าที่ ตั้งค่าระบบ: google_enabled, google_client_id, google_client_secret, google_allowed_domain
- * โหมด drive (v1.18): ใช้ Client เดียวกันขอสิทธิ์ Google Drive ให้ระบบเก็บไฟล์ (ดู includes/drive.php)
+ * ใช้สำหรับยืนยันตัวตนเท่านั้น ไม่มีการเชื่อมต่อที่เก็บไฟล์ Google Drive
  */
 
 /** เปิดใช้และตั้งค่าครบหรือไม่ */
@@ -24,10 +25,10 @@ function google_redirect_uri(): string
     return site_base_url() . '/auth/google_callback.php';
 }
 
-/** โดเมนอีเมลที่อนุญาต (ว่าง = ทุกโดเมน) */
+/** รองรับทั้งอีเมลองค์กรและอีเมลทั่วไป แม้มีค่าจำกัดโดเมนเดิมในฐานข้อมูล */
 function google_allowed_domain(): string
 {
-    return strtolower(trim((string)setting('google_allowed_domain'), " @\t"));
+    return '';
 }
 
 /**
@@ -44,8 +45,6 @@ function google_endpoint(string $name): string
         'token'    => 'https://oauth2.googleapis.com/token',
         'userinfo' => 'https://openidconnect.googleapis.com/v1/userinfo',
         'revoke'   => 'https://oauth2.googleapis.com/revoke',
-        'drive'        => 'https://www.googleapis.com/drive/v3',
-        'drive_upload' => 'https://www.googleapis.com/upload/drive/v3',
     ];
     return $map[$name];
 }
@@ -58,10 +57,13 @@ function google_b64url(string $bin): string
 
 /**
  * สร้าง URL ไปหน้าเลือกบัญชี Google และเก็บ state/PKCE ไว้ใน session
- * @param string $mode login (เข้าสู่ระบบ/สมัคร) | link (เชื่อมบัญชีจากหน้าโปรไฟล์) | drive (เชื่อมต่อที่เก็บไฟล์ Google Drive)
+ * @param string $mode login (เข้าสู่ระบบ/สมัคร) | link (เชื่อมบัญชีจากหน้าโปรไฟล์)
  */
 function google_auth_url(string $mode, string $next = ''): string
 {
+    if ($mode === 'drive') {
+        throw new RuntimeException('ระบบเก็บไฟล์บนเครื่องที่ติดตั้งระบบเท่านั้น ไม่รองรับการเชื่อมต่อ Google Drive');
+    }
     $state = bin2hex(random_bytes(16));
     $verifier = google_b64url(random_bytes(32));
     $_SESSION['google_oauth'] = [
@@ -81,12 +83,7 @@ function google_auth_url(string $mode, string $next = ''): string
         'code_challenge_method' => 'S256',
         'prompt'                => 'select_account',
     ];
-    if ($mode === 'drive') {
-        // ขอ refresh token เพื่อให้ระบบเข้าถึง Drive ได้ตลอด (prompt=consent ให้ Google ส่ง refresh token ทุกครั้ง)
-        $params['scope'] = 'openid email ' . drive_scope();
-        $params['access_type'] = 'offline';
-        $params['prompt'] = 'consent select_account';
-    } elseif (google_allowed_domain() !== '') {
+    if (google_allowed_domain() !== '') {
         $params['hd'] = google_allowed_domain();
     }
     return google_endpoint('auth') . '?' . http_build_query($params);

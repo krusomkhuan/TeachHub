@@ -13,7 +13,7 @@ $ayId = $ay ? (int)$ay['id'] : 0;
 
 // ---------- ตัวเลขสรุป ----------
 $deptTeachers = (int)db_value(
-    "SELECT COUNT(*) FROM users WHERE department_id = ? AND status = 'active' AND role IN ('teacher','supervisor')",
+    "SELECT COUNT(*) FROM users WHERE department_id = ? AND status = 'active' AND role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql('id'),
     'i',
     [$deptId]
 );

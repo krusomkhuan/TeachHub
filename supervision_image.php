@@ -16,7 +16,8 @@ if (!$img) {
     abort_page(404, 'ไม่พบรูปภาพ');
 }
 $sc = schedule_fetch((int)$img['schedule_id']);
-if (!$sc || !can_view_schedule($user, $sc)) {
+// ผู้พิจารณารายงานการนิเทศต้องเห็นรูปภาคผนวกของรายงานที่พิจารณา
+if (!$sc || (!can_view_schedule($user, $sc) && !report_user_steps((int)$user['id']))) {
     abort_page(403, 'ไม่มีสิทธิ์ดูรูปภาพนี้');
 }
 send_file('supervision', $img['stored_name'], $img['original_name'], true);

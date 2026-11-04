@@ -18,7 +18,7 @@ $departments = $isSupervisor ? [] : db_all('SELECT id, name FROM departments ORD
 $teachers = db_all(
     "SELECT u.id, u.prefix, u.first_name, u.last_name, COALESCE(d.name, '-') AS department_name
      FROM users u LEFT JOIN departments d ON d.id = u.department_id
-     WHERE u.status = 'active' AND u.role IN ('teacher','supervisor') AND (? = 0 OR u.department_id = ?)
+     WHERE u.status = 'active' AND u.role IN ('teacher','supervisor') AND (? = 0 OR u.department_id = ?)" . curriculum_staff_exclude_sql() . "
      ORDER BY d.name, u.first_name",
     'ii',
     [$dept, $dept]

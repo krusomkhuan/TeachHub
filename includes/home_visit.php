@@ -137,7 +137,9 @@ function home_visit_summary(int $year, int $deptId = 0, int $teacherId = 0, ?arr
                 MAX(d.name) AS department_name
          FROM advisor_groups g JOIN academic_years ay ON ay.id = g.academic_year_id
          JOIN users u ON u.id = g.teacher_id LEFT JOIN departments d ON d.id = g.department_id
-         WHERE ay.year = ? AND (? = 0 OR g.academic_year_id = ?) AND (? = 0 OR g.department_id = ?) AND (? = 0 OR g.teacher_id = ?)
+         WHERE ay.year = ? AND (? = 0 OR g.academic_year_id = ?) AND (? = 0 OR g.department_id = ?) AND (? = 0 OR g.teacher_id = ?)"
+            // สรุปรวมตัดเจ้าหน้าที่งานพัฒนาหลักสูตรฯ / สรุปรายคน (ระบุ $teacherId) ยังเปิดดูข้อมูลเดิมได้
+            . ($teacherId ? '' : curriculum_staff_exclude_sql('g.teacher_id')) . "
          GROUP BY g.teacher_id, g.group_name, u.prefix, u.first_name, u.last_name
          ORDER BY department_name, u.first_name, g.group_name",
         'iiiiiii',

@@ -38,6 +38,18 @@ if (is_post()) {
         redirect('admin/settings.php');
     }
 
+    // ทดสอบส่งอีเมลด้วยค่าที่บันทึกไว้ ไปยังอีเมลของผู้ดูแลที่กดทดสอบ
+    if ($action === 'test_mail') {
+        $result = send_mail((string)$user['email'], 'ทดสอบการส่งอีเมล ' . setting('system_name', 'TeachHub'), 'การตั้งค่าการส่งอีเมลใช้งานได้');
+        log_activity('settings_update', 'ทดสอบส่งอีเมล: ' . ($result['ok'] ? 'สำเร็จ' : 'ไม่สำเร็จ'));
+        if ($result['ok']) {
+            flash('success', 'ส่งอีเมลทดสอบไปที่ ' . $user['email'] . ' แล้ว กรุณาตรวจสอบกล่องจดหมาย');
+        } else {
+            flash('error', 'ส่งอีเมลไม่สำเร็จ: ' . $result['error']);
+        }
+        redirect('admin/settings.php#mail');
+    }
+
     $d = [
         'college_name'        => mb_substr(post('college_name'), 0, 150),
         'system_name'         => mb_substr(post('system_name'), 0, 60),
@@ -54,14 +66,29 @@ if (is_post()) {
         // เข้าสู่ระบบด้วย Google (Client Secret บันทึกแยก — เว้นว่าง = ใช้ค่าเดิม)
         'google_enabled'        => isset($_POST['google_enabled']) ? '1' : '0',
         'google_client_id'      => mb_substr(post('google_client_id'), 0, 255),
-        'google_allowed_domain' => strtolower(trim(mb_substr(post('google_allowed_domain'), 0, 100), " @")),
+        'google_allowed_domain' => '', // รับอีเมลองค์กรและอีเมลทั่วไป
+        // การส่งอีเมล (รหัสผ่าน SMTP บันทึกแยก — เว้นว่าง = ใช้ค่าเดิม)
+        'mail_enabled'   => isset($_POST['mail_enabled']) ? '1' : '0',
+        'smtp_host'      => mb_substr(post('smtp_host'), 0, 150),
+        'smtp_port'      => (string)(int)post('smtp_port'),
+        'smtp_secure'    => in_array(post('smtp_secure'), ['tls', 'ssl', 'none'], true) ? post('smtp_secure') : 'tls',
+        'smtp_user'      => mb_substr(post('smtp_user'), 0, 150),
+        'mail_from'      => mb_substr(post('mail_from'), 0, 150),
+        'mail_from_name' => mb_substr(post('mail_from_name'), 0, 100),
     ];
+    $smtpPass = mb_substr((string)($_POST['smtp_pass'] ?? ''), 0, 255);
+    if ($d['mail_enabled'] === '1') {
+        if ($d['smtp_host'] === '' || (int)$d['smtp_port'] < 1 || (int)$d['smtp_port'] > 65535) {
+            $errors['mail'] = 'เปิดใช้การส่งอีเมลต้องกรอกเซิร์ฟเวอร์ SMTP และพอร์ต (1-65535)';
+        } elseif (!valid_email($d['mail_from'])) {
+            $errors['mail'] = 'อีเมลผู้ส่งไม่ถูกต้อง';
+        } elseif ($d['smtp_secure'] === 'none' && $d['smtp_user'] !== '') {
+            $errors['mail'] = 'การใช้ชื่อผู้ใช้ SMTP ต้องเลือกการเข้ารหัส TLS หรือ SSL';
+        }
+    }
     $googleSecret = mb_substr(post('google_client_secret'), 0, 255);
     if ($d['google_enabled'] === '1' && ($d['google_client_id'] === '' || ($googleSecret === '' && trim((string)setting('google_client_secret')) === ''))) {
         $errors['google'] = 'เปิดใช้ Google ต้องกรอก Client ID และ Client Secret';
-    }
-    if ($d['google_allowed_domain'] !== '' && !preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $d['google_allowed_domain'])) {
-        $errors['google'] = 'โดเมนไม่ถูกต้อง เช่น pticec.ac.th';
     }
     $exts = array_values(array_intersect($docExtensions, (array)($_POST['allowed_extensions'] ?? [])));
 
@@ -86,12 +113,9 @@ if (is_post()) {
     if (!$exts) {
         $errors['allowed_extensions'] = 'ต้องเลือกอย่างน้อย 1 นามสกุล';
     }
-    // ผู้พิจารณารายงานการนิเทศ 3 ขั้น (ต้องเป็น admin หรือผู้บริหารที่ใช้งานอยู่)
-    $approverIds = array_map('intval', array_column(
-        db_all("SELECT id FROM users WHERE status = 'active' AND role IN ('admin','executive')"),
-        'id'
-    ));
+    // ผู้พิจารณารายงาน 3 ขั้น (admin/ผู้บริหารที่ใช้งานอยู่ + ขั้น 1 เลือกหัวหน้างานพัฒนาหลักสูตรฯ ได้)
     for ($i = 1; $i <= 3; $i++) {
+        $approverIds = array_map('intval', array_column(report_approver_candidates($i), 'id'));
         $aid = (int)post('approver_' . $i . '_user');
         $d['approver_' . $i . '_user'] = $aid && in_array($aid, $approverIds, true) ? (string)$aid : '';
         $d['approver_' . $i . '_title'] = mb_substr(post('approver_' . $i . '_title'), 0, 150);
@@ -126,12 +150,18 @@ if (is_post()) {
         if ($googleSecret !== '') {
             $changed[] = 'google_client_secret: (เปลี่ยนค่า)';
         }
+        if ($smtpPass !== '') {
+            $changed[] = 'smtp_pass: (เปลี่ยนค่า)';
+        }
         foreach ($d as $k => $v) {
             setting_save($k, (string)$v);
         }
         setting_save('allowed_extensions', implode(',', $exts));
         if ($googleSecret !== '') {
             setting_save('google_client_secret', $googleSecret);
+        }
+        if ($smtpPass !== '') {
+            setting_save('smtp_pass', $smtpPass);
         }
         if ($newLogo) {
             delete_upload('system', setting('logo'));
@@ -155,6 +185,10 @@ $pageIcon = 'bi-gear';
 $breadcrumbs = ['ตั้งค่าระบบ' => null];
 require APP_ROOT . '/includes/header.php';
 ?>
+<form method="post" id="testMailForm" action="<?= e(url('admin/settings.php')) ?>">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="test_mail">
+</form>
 <form method="post" enctype="multipart/form-data" novalidate data-confirm="บันทึกการตั้งค่าระบบ?">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="save">
@@ -220,8 +254,7 @@ require APP_ROOT . '/includes/header.php';
             <div class="card mb-4" id="approvers">
                 <div class="card-header"><i class="bi bi-diagram-2 me-2"></i>ผู้พิจารณารายงานการนิเทศของหัวหน้าแผนก (เสนอตามลำดับ)</div>
                 <div class="card-body">
-                    <?php $approverOptions = db_all("SELECT id, prefix, first_name, last_name, role FROM users WHERE status = 'active' AND role IN ('admin','executive') ORDER BY role, first_name"); ?>
-                    <?php for ($i = 1; $i <= 3; $i++): ?>
+                    <?php for ($i = 1; $i <= 3; $i++): $approverOptions = report_approver_candidates($i); ?>
                         <div class="row g-2 mb-2 align-items-end">
                             <div class="col-md-1 fw-bold text-center fs-5"><?= $i ?></div>
                             <div class="col-md-6">
@@ -235,14 +268,15 @@ require APP_ROOT . '/includes/header.php';
                                     <option value="">-- ยังไม่กำหนด --</option>
                                     <?php foreach ($approverOptions as $o): ?>
                                         <option value="<?= (int)$o['id'] ?>" <?= (int)$v('approver_' . $i . '_user') === (int)$o['id'] ? 'selected' : '' ?>>
-                                            <?= e(full_name($o)) ?> (<?= e($o['role'] === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้บริหาร') ?>)</option>
+                                            <?= e(full_name($o)) ?> (<?= e(['admin' => 'ผู้ดูแลระบบ', 'executive' => 'ผู้บริหาร'][$o['role']] ?? 'หัวหน้างานพัฒนาหลักสูตรฯ') ?>)</option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                         </div>
                     <?php endfor; ?>
                     <?= $err('approvers') ?>
-                    <div class="form-text">ผู้พิจารณาต้องมีบัญชีสิทธิ์ “ผู้ดูแลระบบ” หรือ “ผู้บริหาร” (เพิ่มได้ที่เมนูจัดการผู้ใช้)
+                    <div class="form-text">ผู้พิจารณาต้องมีบัญชีสิทธิ์ “ผู้ดูแลระบบ” หรือ “ผู้บริหาร” ส่วนขั้น 1 เลือกบัญชีสิทธิ์ “หัวหน้างานพัฒนาหลักสูตรฯ” ได้ด้วย (เพิ่มได้ที่เมนูจัดการผู้ใช้)
+                        · ผู้พิจารณาชุดนี้ใช้กับรายงานการนิเทศและรายงานสรุปผลประเมินแผนฯ · เจ้าหน้าที่งานพัฒนาหลักสูตรฯ เป็นผู้พิจารณาไม่ได้
                         · ขั้น 1–2 เลือก “เห็นควรเสนอ” หรือ “ส่งกลับแก้ไข” · ขั้น 3 เลือก “ทราบ/อนุมัติ” หรือ “ส่งกลับแก้ไข”</div>
                 </div>
             </div>
@@ -254,7 +288,7 @@ require APP_ROOT . '/includes/header.php';
                         <div class="form-check form-switch mt-2">
                             <input class="form-check-input" type="checkbox" role="switch" name="allow_register" id="allow_register" value="1"
                                 <?= (is_post() ? isset($_POST['allow_register']) : setting('allow_register', '1') === '1') ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="allow_register">เปิดให้ครูสมัครสมาชิกเอง (ต้องรอ admin อนุมัติ)</label>
+                            <label class="form-check-label" for="allow_register">เปิดให้ครูสมัครสมาชิกเอง (สมัครแล้วเข้าใช้งานได้ทันที)</label>
                         </div>
                         <div class="form-check form-switch mt-3">
                             <input class="form-check-input" type="checkbox" role="switch" name="hr_enabled" id="hr_enabled" value="1"
@@ -266,6 +300,61 @@ require APP_ROOT . '/includes/header.php';
                     <div class="col-md-6">
                         <label class="form-label" for="session_timeout_min">หมดเวลาเมื่อไม่ใช้งาน (นาที) *</label>
                         <input type="number" class="form-control<?= $invalid('session_timeout_min') ?>" name="session_timeout_min" id="session_timeout_min" min="5" max="480" value="<?= e($v('session_timeout_min', '30')) ?>"><?= $err('session_timeout_min') ?>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4" id="mail">
+                <div class="card-header"><i class="bi bi-envelope me-2"></i>การส่งอีเมล (รหัสผ่านชั่วคราวเมื่อลืมรหัสผ่าน)</div>
+                <div class="card-body row g-3">
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" name="mail_enabled" id="mail_enabled" value="1"
+                                <?= (is_post() ? isset($_POST['mail_enabled']) : setting('mail_enabled', '0') === '1') ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="mail_enabled">ส่งรหัสผ่านชั่วคราวไปที่อีเมลของผู้ใช้เมื่อลืมรหัสผ่าน</label>
+                            <div class="form-text">ปิดอยู่ = ผู้ใช้ส่งคำขอให้ผู้ดูแลระบบรีเซ็ตรหัสผ่านที่หน้าจัดการผู้ใช้</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="smtp_host">เซิร์ฟเวอร์ SMTP</label>
+                        <input class="form-control<?= $invalid('mail') ?>" name="smtp_host" id="smtp_host" maxlength="150"
+                               value="<?= e($v('smtp_host')) ?>" placeholder="smtp.gmail.com" autocomplete="off">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="smtp_port">พอร์ต</label>
+                        <input type="number" class="form-control<?= $invalid('mail') ?>" name="smtp_port" id="smtp_port" min="1" max="65535" value="<?= e($v('smtp_port', '587')) ?>">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="smtp_secure">การเข้ารหัส</label>
+                        <?php $secureValue = $v('smtp_secure', 'tls'); ?>
+                        <select class="form-select" name="smtp_secure" id="smtp_secure">
+                            <?php foreach (['tls' => 'TLS (พอร์ต 587)', 'ssl' => 'SSL (พอร์ต 465)', 'none' => 'ไม่เข้ารหัส'] as $secureKey => $secureLabel): ?>
+                                <option value="<?= e($secureKey) ?>" <?= $secureValue === $secureKey ? 'selected' : '' ?>><?= e($secureLabel) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="smtp_user">ชื่อผู้ใช้ SMTP</label>
+                        <input class="form-control" name="smtp_user" id="smtp_user" maxlength="150" value="<?= e($v('smtp_user')) ?>" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="smtp_pass">รหัสผ่าน SMTP</label>
+                        <input type="password" class="form-control" name="smtp_pass" id="smtp_pass" maxlength="255"
+                               placeholder="<?= setting('smtp_pass') !== '' ? 'บันทึกไว้แล้ว — เว้นว่างถ้าไม่เปลี่ยน' : 'Gmail ใช้รหัสผ่านสำหรับแอป (App Password)' ?>" autocomplete="new-password">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="mail_from">อีเมลผู้ส่ง</label>
+                        <input type="email" class="form-control<?= $invalid('mail') ?>" name="mail_from" id="mail_from" maxlength="150" value="<?= e($v('mail_from')) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="mail_from_name">ชื่อผู้ส่ง</label>
+                        <input class="form-control" name="mail_from_name" id="mail_from_name" maxlength="100" value="<?= e($v('mail_from_name')) ?>">
+                    </div>
+                    <div class="col-12"><?= $err('mail') ?>
+                        <button type="submit" form="testMailForm" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-send me-1"></i> ทดสอบส่งอีเมลไปที่ <?= e($user['email']) ?>
+                        </button>
+                        <div class="form-text">ทดสอบด้วยค่าที่บันทึกไว้แล้ว กรุณากดบันทึกการตั้งค่าก่อนทดสอบ</div>
                     </div>
                 </div>
             </div>
@@ -291,12 +380,8 @@ require APP_ROOT . '/includes/header.php';
                                placeholder="<?= setting('google_client_secret') !== '' ? 'บันทึกไว้แล้ว — เว้นว่างถ้าไม่เปลี่ยน' : 'GOCSPX-...' ?>" autocomplete="new-password">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="google_allowed_domain">จำกัดเฉพาะอีเมลโดเมน (ไม่บังคับ)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">@</span>
-                            <input class="form-control<?= $invalid('google') ?>" name="google_allowed_domain" id="google_allowed_domain" maxlength="100"
-                                   value="<?= e($v('google_allowed_domain')) ?>" placeholder="เช่น pticec.ac.th">
-                        </div>
+                        <div class="form-label">อีเมลที่สมัครและเข้าสู่ระบบได้</div>
+                        <div class="form-text">รองรับทั้งอีเมลองค์กรและอีเมลทั่วไป ไม่จำกัดโดเมน บัญชีที่ใช้ปุ่ม Google ต้องเป็นบัญชี Google</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Authorized redirect URI (คัดลอกไปใส่ใน Google Cloud)</label>
@@ -305,9 +390,8 @@ require APP_ROOT . '/includes/header.php';
                     <div class="col-12"><?= $err('google') ?>
                         <div class="form-text">
                             สร้างได้ที่ Google Cloud Console → APIs &amp; Services → Credentials → Create OAuth client ID (Web application)
-                            แล้วใส่ Redirect URI ด้านบน · ผู้ที่ไม่มีบัญชีจะถูกพาไปกรอกข้อมูลสมัครสมาชิกและต้องรอ admin อนุมัติ
-                            · บัญชีเดิมที่อีเมลตรงกันจะเชื่อมกับ Google ให้อัตโนมัติ
-                            · Client เดียวกันนี้ใช้เชื่อมต่อ <a href="<?= e(url('admin/drive.php')) ?>">ที่เก็บไฟล์ Google Drive</a> ได้ด้วย
+                            แล้วใส่ Redirect URI ด้านบน · ผู้ที่ไม่มีบัญชีจะถูกพาไปกรอกข้อมูลสมัครสมาชิก แล้วเข้าใช้งานได้ทันที
+                            · ผู้ที่มีบัญชีอยู่แล้วต้องเข้าสู่ระบบด้วยรหัสผ่าน แล้วเชื่อม Google ที่หน้าโปรไฟล์ก่อนใช้ปุ่มนี้
                             <?php if (site_url_is_local()): ?><br><span class="text-danger">ขณะนี้ URL เป็น localhost — Google รองรับ http://localhost สำหรับทดสอบ แต่ใช้งานจริงต้องเป็น https และตั้ง “URL หลักของระบบ” ให้ถูกต้อง</span><?php endif; ?>
                         </div>
                     </div>

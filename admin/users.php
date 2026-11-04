@@ -1,7 +1,7 @@
 <?php
 /**
  * ไฟล์: admin/users.php
- * จัดการผู้ใช้: อนุมัติ, ระงับ/เปิดใช้งาน, รีเซ็ตรหัสผ่าน, ลบ (เฉพาะบัญชีที่ยังไม่อนุมัติ), จัดการคำขอรีเซ็ตรหัสผ่าน
+ * จัดการผู้ใช้: อนุมัติ, ระงับ/เปิดใช้งาน, รีเซ็ตรหัสผ่าน, ลบ, จัดการคำขอรีเซ็ตรหัสผ่าน
  * แก้ไขข้อมูล/กำหนด role ที่ admin/user_edit.php
  */
 require_once __DIR__ . '/../config/config.php';
@@ -109,15 +109,33 @@ if (is_post()) {
             flash('success', 'ปฏิเสธคำขอแล้ว');
             break;
 
-        // ---------- ลบ (เฉพาะบัญชีรออนุมัติ เพื่อไม่ให้งานที่ส่งแล้วหาย) ----------
+        // ---------- ลบผู้ใช้ (ฐานข้อมูลเป็นผู้จัดการข้อมูลที่ผูกด้วย foreign key) ----------
         case 'delete':
-            if ($target['status'] !== 'pending') {
-                flash('error', 'ลบได้เฉพาะบัญชีที่ยังไม่อนุมัติ บัญชีที่ใช้งานแล้วให้ใช้ "ระงับ" แทน');
-            } else {
-                db_exec("DELETE FROM users WHERE id = ? AND status = 'pending'", 'i', [$targetId]);
+            if ($targetId === $myId) {
+                flash('error', 'ไม่สามารถลบบัญชีของตนเองได้');
+                break;
+            }
+            if (is_full_admin($target) && full_admin_count($targetId) < 1) {
+                flash('error', 'ต้องมีผู้ดูแลระบบเต็มสิทธิ์ที่ใช้งานได้อย่างน้อย 1 คน');
+                break;
+            }
+            try {
+                $deleted = db_exec('DELETE FROM users WHERE id = ?', 'i', [$targetId]);
+            } catch (mysqli_sql_exception $ex) {
+                if ((int)$ex->getCode() === 1451) {
+                    flash('error', 'ไม่สามารถลบผู้ใช้นี้ได้ เนื่องจากมีข้อมูลอ้างอิงอยู่ กรุณาใช้การระงับบัญชีแทน');
+                } else {
+                    error_log('user_delete error: ' . $ex->getMessage());
+                    flash('error', 'ลบผู้ใช้ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+                }
+                break;
+            }
+            if ($deleted > 0) {
                 delete_upload('avatars', $target['avatar']);
-                log_activity('user_delete', 'ลบผู้สมัคร ' . $name);
-                flash('success', 'ลบผู้สมัคร ' . $name . ' แล้ว');
+                log_activity('user_delete', 'ลบผู้ใช้ ' . $name);
+                flash('success', 'ลบผู้ใช้ ' . $name . ' แล้ว');
+            } else {
+                flash('error', 'ไม่พบผู้ใช้ หรือบัญชีนี้ถูกลบแล้ว');
             }
             break;
 
@@ -161,6 +179,21 @@ $users = db_all(
     $types,
     $params
 );
+// ตัวกรองตามตำแหน่ง = role ครู + ตำแหน่ง: รวมรายการตำแหน่งของระบบกับตำแหน่งที่มีจริง (เทียบหลังตัดช่องว่างเกิน)
+$positionFilters = array_merge(staff_role_positions(), hr_staff_positions(), reviewer_position_list(),
+    array_column(db_all("SELECT DISTINCT position FROM users WHERE role = 'teacher' AND position <> ''"), 'position'));
+$positionFilters = array_unique(array_map('normalize_position', $positionFilters));
+$staffFilters = array_values(array_filter($positionFilters, 'is_unit_staff_position'));
+$headFilters = array_values(array_filter($positionFilters, 'is_unit_head_position'));
+sort($staffFilters);
+sort($headFilters);
+$fPosition = strpos($fRole, 'pos:') === 0 ? normalize_position(substr($fRole, 4)) : '';
+if ($fRole === 'staff_all' || in_array($fPosition, array_merge($staffFilters, $headFilters), true)) {
+    $users = array_values(array_filter($users, function ($u) use ($fRole, $fPosition) {
+        $position = normalize_position((string)$u['position']);
+        return $u['role'] === 'teacher' && ($fRole === 'staff_all' ? is_unit_staff_position($position) : $position === $fPosition);
+    }));
+}
 $departments = db_all('SELECT id, name FROM departments ORDER BY name');
 $requests = db_all(
     "SELECT r.*, u.username, u.prefix, u.first_name, u.last_name, u.email, u.phone, u.role
@@ -243,6 +276,17 @@ function user_action_form(string $action, int $userId, string $label, string $bt
                     <?php foreach (role_labels() as $k => $v): ?>
                         <option value="<?= e($k) ?>" <?= $fRole === $k ? 'selected' : '' ?>><?= e($v) ?></option>
                     <?php endforeach; ?>
+                    <optgroup label="เจ้าหน้าที่ (ครู + ตำแหน่ง)">
+                        <option value="staff_all" <?= $fRole === 'staff_all' ? 'selected' : '' ?>>เจ้าหน้าที่ทุกงาน</option>
+                        <?php foreach ($staffFilters as $p): ?>
+                            <option value="<?= e('pos:' . $p) ?>" <?= $fPosition === $p ? 'selected' : '' ?>><?= e($p) ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                    <optgroup label="หัวหน้างาน (ครู + ตำแหน่ง)">
+                        <?php foreach ($headFilters as $p): ?>
+                            <option value="<?= e('pos:' . $p) ?>" <?= $fPosition === $p ? 'selected' : '' ?>><?= e($p) ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
                 </select>
             </div>
             <div class="col-sm-6 col-lg-4">
@@ -310,9 +354,8 @@ function user_action_form(string $action, int $userId, string $label, string $bt
                                     <?= user_action_form('suspend', $uidRow, 'ระงับ', 'btn btn-sm btn-outline-danger', 'ระงับการใช้งานของ ' . full_name($u) . '?', 'bi-slash-circle') ?>
                                 <?php elseif ($u['status'] === 'suspended'): ?>
                                     <?= user_action_form('activate', $uidRow, 'เปิดใช้งาน', 'btn btn-sm btn-outline-success', 'เปิดใช้งาน ' . full_name($u) . ' อีกครั้ง?', 'bi-arrow-counterclockwise') ?>
-                                <?php else: ?>
-                                    <?= user_action_form('delete', $uidRow, 'ลบผู้สมัคร', 'btn btn-sm btn-outline-danger', 'ลบผู้สมัคร ' . full_name($u) . ' ออกจากระบบ? (ไม่สามารถกู้คืนได้)', 'bi-trash') ?>
                                 <?php endif; ?>
+                                <?= user_action_form('delete', $uidRow, 'ลบผู้ใช้งาน', 'btn btn-sm btn-outline-danger', 'ยืนยันลบผู้ใช้งาน ' . full_name($u) . ' (' . $u['username'] . ') ออกจากระบบ? บัญชีและข้อมูลที่ผูกกับบัญชีจะถูกลบตามความสัมพันธ์ของระบบ ไม่สามารถกู้คืนได้', 'bi-trash') ?>
                             <?php endif; ?>
                             <?php endif; ?>
                         </td>

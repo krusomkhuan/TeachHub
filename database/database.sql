@@ -22,6 +22,7 @@ DROP TABLE IF EXISTS `activity_logs`, `drive_files`, `user_active_days`, `site_v
   `hr_service_records`, `hr_educations`, `hr_profiles`, `password_reset_requests`, `board_replies`, `board_topics`, `settings`, `downloads`, `download_categories`,
   `plan_eval_items`, `plan_evaluations`, `plan_eval_criteria`,
   `home_visit_images`, `home_visits`, `advisor_report_images`, `advisor_reports`, `advisor_skip_dates`, `advisor_groups`,
+  `plan_eval_summary_report_actions`, `plan_eval_summary_reports`,
   `supervision_report_actions`, `supervision_reports`,
   `student_eval_scores`, `student_eval_responses`, `student_eval_sessions`,
   `announcements`, `supervision_images`, `supervision_scores`, `supervision_results`,
@@ -560,6 +561,52 @@ CREATE TABLE `supervision_report_actions` (
   CONSTRAINT `fk_sup_report_action_report` FOREIGN KEY (`report_id`)
     REFERENCES `supervision_reports` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT `fk_sup_report_action_user` FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- รายงานสรุปผลการประเมินแผนฯ ระดับวิทยาลัย (เจ้าหน้าที่งานพัฒนาหลักสูตรฯ จัดทำ เสนอผู้พิจารณา 3 ขั้น)
+CREATE TABLE `plan_eval_summary_reports` (
+  `id`               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `academic_year_id` INT UNSIGNED NOT NULL,
+  `author_id`        INT UNSIGNED NOT NULL,
+  `title`            VARCHAR(255) NOT NULL,
+  `summary_overall`  TEXT NULL,
+  `strengths`        TEXT NULL,
+  `problems`         TEXT NULL,
+  `suggestions`      TEXT NULL,
+  `status`           ENUM('draft','pending','returned','approved') NOT NULL DEFAULT 'draft',
+  `current_step`     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `snapshot`         LONGTEXT NULL,
+  `submitted_at`     DATETIME NULL,
+  `approved_at`      DATETIME NULL,
+  `created_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pe_report_status` (`status`, `current_step`),
+  KEY `idx_pe_report_author` (`author_id`),
+  KEY `idx_pe_report_academic` (`academic_year_id`),
+  CONSTRAINT `fk_pe_report_academic` FOREIGN KEY (`academic_year_id`)
+    REFERENCES `academic_years` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_pe_report_author` FOREIGN KEY (`author_id`)
+    REFERENCES `users` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ประวัติการเสนอ/พิจารณารายงานสรุปผลการประเมินแผนฯ (step 0 = เจ้าหน้าที่เสนอ, 1-3 = ผู้พิจารณาแต่ละขั้น)
+CREATE TABLE `plan_eval_summary_report_actions` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `report_id`   INT UNSIGNED NOT NULL,
+  `step`        TINYINT UNSIGNED NOT NULL,
+  `user_id`     INT UNSIGNED NULL,
+  `position`    VARCHAR(150) NOT NULL DEFAULT '' COMMENT 'ตำแหน่งของผู้พิจารณา ณ เวลานั้น',
+  `action`      ENUM('submit','forward','approve','return') NOT NULL,
+  `comment`     TEXT NULL,
+  `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pe_report_action_report` (`report_id`),
+  KEY `idx_pe_report_action_user` (`user_id`),
+  CONSTRAINT `fk_pe_report_action_report` FOREIGN KEY (`report_id`)
+    REFERENCES `plan_eval_summary_reports` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_pe_report_action_user` FOREIGN KEY (`user_id`)
     REFERENCES `users` (`id`) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

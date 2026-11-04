@@ -49,11 +49,11 @@ if (is_post()) {
         'status'            => post('status'),
     ];
     // สิทธิ์เจ้าหน้าที่งานตามตำแหน่ง (ค่า "pos:ลำดับ" จากช่องสิทธิ์) = role ครูผู้สอน + ตำแหน่งนั้น
-    $staffRoles = advisor_staff_positions();
+    $staffRoles = staff_role_positions();
     if (preg_match('/^pos:(\d+)$/', $data['role'], $m) && isset($staffRoles[(int)$m[1]])) {
         $data['role'] = 'teacher';
         $data['position'] = $staffRoles[(int)$m[1]];
-    } elseif (in_array(normalize_position($data['position']), $staffRoles, true)) {
+    } elseif (in_array(normalize_position($data['position']), advisor_staff_positions(), true)) {
         // เลือกสิทธิ์หลักแทนสิทธิ์เจ้าหน้าที่งาน = ยกเลิกตำแหน่งงานครูที่ปรึกษาฯ (สิทธิ์ตรวจรายงาน)
         $data['position'] = $data['role'] === 'teacher' ? 'ครู' : '';
     }
@@ -333,7 +333,7 @@ require APP_ROOT . '/includes/header.php';
                         <?php
                         // ค่าที่เลือกอยู่: ครูผู้สอนที่มีตำแหน่งเจ้าหน้าที่งาน แสดงเป็นตัวเลือกสิทธิ์ตามตำแหน่ง
                         $roleSel = $val('role', 'teacher');
-                        $staffIdx = array_search(normalize_position($val('position')), advisor_staff_positions(), true);
+                        $staffIdx = array_search(normalize_position($val('position')), staff_role_positions(), true);
                         if (!is_post() && $roleSel === 'teacher' && $staffIdx !== false) {
                             $roleSel = 'pos:' . $staffIdx;
                         }
@@ -349,9 +349,17 @@ require APP_ROOT . '/includes/header.php';
                                     <option value="pos:<?= $i ?>" data-position="<?= e($p) ?>" <?= $roleSel === 'pos:' . $i ? 'selected' : '' ?>><?= e($p) ?></option>
                                 <?php endforeach; ?>
                             </optgroup>
+                            <optgroup label="งานพัฒนาหลักสูตรฯ (สิทธิ์ครูผู้สอน + ตำแหน่ง)">
+                                <?php foreach ([CURRICULUM_STAFF_POSITION, PLAN_EVAL_HEAD_POSITION] as $p): $curriculumIdx = array_search($p, staff_role_positions(), true); ?>
+                                    <option value="pos:<?= $curriculumIdx ?>" data-position="<?= e($p) ?>" <?= $roleSel === 'pos:' . $curriculumIdx ? 'selected' : '' ?>><?= e($p) ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
                         </select><?= $err('role') ?>
                         <div class="form-text">เลือกหัวหน้างาน/เจ้าหน้าที่งานครูที่ปรึกษาและแนะแนว ระบบจะตั้งตำแหน่งให้อัตโนมัติ และได้สิทธิ์ตรวจรายงานกิจกรรมโฮมรูม/การเยี่ยมบ้าน
-                            (เจ้าหน้าที่งานไม่ต้องสังกัดแผนกวิชา · หัวหน้างานต้องเลือกแผนก เพราะเป็นครูผู้สอนด้วย)</div>
+                            (เจ้าหน้าที่งานไม่ต้องสังกัดแผนกวิชา · หัวหน้างานต้องเลือกแผนก เพราะเป็นครูผู้สอนด้วย)<br>
+                            เจ้าหน้าที่งานพัฒนาหลักสูตรฯ: ดูรายงานการส่งงาน ทำรายงานสรุปผลประเมินแผน/การนิเทศ และจัดทำปฏิทินกำหนดการได้ ไม่ต้องสังกัดแผนก<br>
+                            หัวหน้างานพัฒนาหลักสูตรฯ: ตรวจโครงการสอน/แผน ประเมินแผนได้ทุกแผนก และเป็นผู้พิจารณาขั้นที่ 1 ได้เมื่อเลือกไว้ที่ตั้งค่าระบบ ต้องเลือกแผนกเพราะเป็นครูผู้สอนด้วย<br>
+                            ทั้งสองสิทธิ์แยกจากกัน และไม่ได้สิทธิ์ผู้ดูแลระบบ</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="status">สถานะ *</label>
@@ -403,7 +411,7 @@ require APP_ROOT . '/includes/header.php';
 $pageScripts = '(function () {
     var role = document.getElementById("role"), pos = document.getElementById("position"), dept = document.getElementById("department_id");
     if (!role) return;
-    var STAFF_POS = ' . json_encode(advisor_staff_positions(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';
+    var STAFF_POS = ' . json_encode(staff_role_positions(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';
     role.addEventListener("change", function () {
         var p = role.options[role.selectedIndex].getAttribute("data-position");
         if (!p) {

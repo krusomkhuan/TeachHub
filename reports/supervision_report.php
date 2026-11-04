@@ -116,7 +116,7 @@ $canEdit = can_edit_report($user, $rep);
 
 $pageTitle = 'รายงานการนิเทศครูผู้สอน';
 $pageIcon = 'bi-file-earmark-text';
-$activeMenu = $user['role'] === 'supervisor' ? 'supervisor/supervision_reports.php' : 'reports/supervision_reports.php';
+$activeMenu = $user['role'] === 'supervisor' && !report_user_steps($uid) ? 'supervisor/supervision_reports.php' : 'reports/supervision_reports.php';
 $breadcrumbs = ['รายงานการนิเทศ' => $activeMenu, $rep['department_name'] => null];
 $pageActions = ($canEdit ? '<a href="' . e(url('supervisor/supervision_reports.php?edit=' . (int)$rep['id'])) . '" class="btn btn-outline-primary"><i class="bi bi-pencil me-1"></i>แก้ไข</a>' : '')
     . '<a href="' . e(url('reports/supervision_report_print.php?id=' . (int)$rep['id'])) . '" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>พิมพ์บันทึกข้อความ / PDF</a>';

@@ -13,8 +13,57 @@
 /** ตำแหน่งที่ประเมินแผนได้ทุกแผนก (แก้ตำแหน่งได้เฉพาะผู้ดูแลระบบที่หน้าแก้ไขผู้ใช้) */
 const PLAN_EVAL_HEAD_POSITION = 'หัวหน้างานพัฒนาหลักสูตรและการจัดการเรียนรู้';
 
+/**
+ * ตำแหน่งเจ้าหน้าที่งานพัฒนาหลักสูตรฯ: ดูรายงาน ทำรายงานสรุป และจัดปฏิทินกำหนดการ
+ * เป็นสิทธิ์คนละชุดกับหัวหน้างาน: ไม่ใช่ผู้ดูแลระบบ ไม่ตรวจงาน ไม่ประเมินแผน และเป็นผู้พิจารณารายงานไม่ได้
+ */
+const CURRICULUM_STAFF_POSITION = 'เจ้าหน้าที่งานพัฒนาหลักสูตรและการจัดการเรียนรู้';
+
 /** เกณฑ์ผ่าน: ค่าเฉลี่ยรวมตอนที่ 2 ตั้งแต่ 3.51 (ระดับดี) */
 const PLAN_EVAL_PASS_AVG = 3.51;
+
+require_once __DIR__ . '/plan_eval_report.php';
+
+/** เจ้าหน้าที่งานพัฒนาหลักสูตรและการจัดการเรียนรู้ = role ครูผู้สอน + ตำแหน่ง (กำหนดได้เฉพาะที่หน้าแก้ไขผู้ใช้) */
+function is_curriculum_staff(array $user): bool
+{
+    return ($user['role'] ?? '') === 'teacher' && ($user['status'] ?? 'active') === 'active'
+        && normalize_position((string)($user['position'] ?? '')) === CURRICULUM_STAFF_POSITION;
+}
+
+/** บังคับสิทธิ์ตาม role โดยเปิดให้เจ้าหน้าที่งานพัฒนาหลักสูตรฯ เข้าได้ด้วย */
+function require_role_or_curriculum_staff(string ...$roles): array
+{
+    $user = require_login();
+    return is_curriculum_staff($user) ? $user : require_role(...$roles);
+}
+
+/**
+ * เงื่อนไข SQL ตัดเจ้าหน้าที่งานพัฒนาหลักสูตรฯ ออกจากการนับผู้มีหน้าที่ส่งงาน (ไม่กระทบงานที่เคยส่งไว้)
+ * หา id ด้วย is_curriculum_staff เพื่อให้ตรงกับการตรวจสิทธิ์ รวมถึงตำแหน่งที่มีช่องว่างเกิน และไม่ขึ้นกับเวอร์ชันฐานข้อมูล
+ * @param string $column คอลัมน์ id ของครู เช่น u.id หรือ g.teacher_id
+ * @return string เช่น " AND u.id NOT IN (3,5)" หรือ '' เมื่อไม่มีเจ้าหน้าที่
+ */
+function curriculum_staff_exclude_sql(string $column = 'u.id'): string
+{
+    static $ids = null;
+    if ($ids === null) {
+        $ids = [];
+        // สถานะไม่เกี่ยว: บัญชีที่ถูกระงับชั่วคราวก็ยังไม่ใช่ผู้มีหน้าที่ส่งงาน
+        foreach (db_all("SELECT id, role, position FROM users WHERE role = 'teacher' AND position LIKE ?", 's', ['%' . CURRICULUM_STAFF_POSITION . '%']) as $u) {
+            if (is_curriculum_staff($u)) {
+                $ids[] = (int)$u['id'];
+            }
+        }
+    }
+    return $ids ? " AND $column NOT IN (" . implode(',', $ids) . ')' : '';
+}
+
+/** ตำแหน่งที่เลือกได้จากช่อง "สิทธิ์การใช้งาน" ในหน้าแก้ไขผู้ใช้ (ค่า pos:ลำดับ) */
+function staff_role_positions(): array
+{
+    return array_merge(advisor_staff_positions(), [CURRICULUM_STAFF_POSITION, PLAN_EVAL_HEAD_POSITION]);
+}
 
 /** ผู้ใช้เป็นหัวหน้างานพัฒนาหลักสูตรและการจัดการเรียนรู้หรือไม่ */
 function is_curriculum_head(array $user): bool
@@ -44,7 +93,7 @@ function is_plan_evaluator(array $user): bool
  */
 function plan_eval_report_scope(array $user): ?int
 {
-    if (plan_eval_scope_all($user) || $user['role'] === 'executive' || is_designated_reviewer($user, 'lesson_plan')) {
+    if (plan_eval_scope_all($user) || $user['role'] === 'executive' || is_designated_reviewer($user, 'lesson_plan') || is_curriculum_staff($user)) {
         return 0;
     }
     if ($user['role'] === 'supervisor' && (int)$user['department_id'] > 0) {
@@ -203,10 +252,10 @@ function plan_eval_level_badge(?float $avg): string
     return '<span class="badge ' . $cls . '">' . number_format($avg, 2) . ' · ' . e($level) . '</span>';
 }
 
-/** ป้ายผ่าน/ไม่ผ่านเกณฑ์ */
+/** แสดงป้ายเฉพาะผลผ่านเกณฑ์ */
 function plan_eval_pass_badge(bool $passed): string
 {
-    return $passed ? '<span class="badge bg-success">ผ่านเกณฑ์</span>' : '<span class="badge bg-danger">ไม่ผ่านเกณฑ์</span>';
+    return $passed ? '<span class="badge bg-success">ผ่านเกณฑ์</span>' : '';
 }
 
 /** ผลที่ส่งให้ครูแล้ว (ไม่ใช่ร่าง) */

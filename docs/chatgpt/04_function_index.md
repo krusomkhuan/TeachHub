@@ -224,7 +224,8 @@
 - `log_action_groups(): array` — หมวดและป้ายชื่อการกระทำใน Log: [รหัสหมวด => [ชื่อหมวด, [action => ป้ายชื่อ]]]
 - `log_action_label(string $action): string` — ป้ายชื่อการกระทำใน Log
 - `log_action_group(string $action): string` — รหัสหมวดของการกระทำ ('other' = ไม่อยู่ในรายการ)
-- `login_locked(string $ip, int $maxAttempts = 5, int $minutes = 15): bool` — ตรวจว่า IP นี้ล็อกอินผิดเกินกำหนดหรือไม่ (ป้องกันการเดารหัสผ่าน)
+- `login_lock_seconds(string $ip, ?int $userId, string $login, int $maxAttempts = 5, int $minutes = 5): int` — วินาทีที่ต้องรอ เมื่อบัญชีร่วมกับ IP นี้ล็อกอินผิดเกินกำหนด (0 = ไม่ถูกจำกัด, ล็อกอินสำเร็จแล้วเริ่มนับใหม่)
+- `login_locked(string $ip, ?int $userId, string $login, int $maxAttempts = 5, int $minutes = 5): bool` — ตรวจว่าถูกจำกัดอยู่หรือไม่ (ป้องกันการเดารหัสผ่าน)
 - `submission_table(string $type): string` — ชื่อตารางของงานแต่ละประเภท (whitelist — ปลอดภัยสำหรับต่อสตริง SQL)
 - `submission_types(): array` — ประเภทงานที่ต้องส่งไฟล์
 - `submission_type_icon(string $type): string` — ไอคอน Bootstrap Icons ของแต่ละประเภทงาน

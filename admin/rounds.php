@@ -9,7 +9,7 @@
  */
 require_once __DIR__ . '/../config/config.php';
 
-$user = require_role('admin');
+$user = require_role_or_curriculum_staff('admin'); // เจ้าหน้าที่งานพัฒนาหลักสูตรฯ จัดทำปฏิทินกำหนดการได้
 $years = db_all('SELECT * FROM academic_years ORDER BY year DESC, semester DESC');
 $yearIds = array_map('intval', array_column($years, 'id'));
 $errors = [];
@@ -301,7 +301,7 @@ require APP_ROOT . '/includes/header.php';
                         </td>
                         <td><?= round_state_badge($r) ?></td>
                         <td>
-                            <?php if ($r['type'] === 'lesson_plan' || is_file(APP_ROOT . '/' . review_page('admin', $r['type']))): ?>
+                            <?php if ($user['role'] === 'admin' && ($r['type'] === 'lesson_plan' || is_file(APP_ROOT . '/' . review_page('admin', $r['type'])))): ?>
                                 <a href="<?= e(url(review_page('admin', $r['type']) . '?round_id=' . (int)$r['id'])) ?>"><?= (int)$r['submissions'] ?> รายการ</a>
                             <?php else: ?>
                                 <?= (int)$r['submissions'] ?> รายการ

@@ -6,7 +6,7 @@
  * ไฟล์สำรอง = ZIP 1 ไฟล์ ประกอบด้วย
  *   manifest.json   ข้อมูลไฟล์สำรอง (เวอร์ชันระบบ วันเวลา จำนวนตาราง/แถว รวมไฟล์แนบหรือไม่)
  *   database.sql    โครงสร้าง + ข้อมูลทุกตาราง (1 บรรทัด = 1 คำสั่ง SQL — กู้คืนทีละคำสั่ง ไม่ติดขนาด max_allowed_packet)
- *   uploads/...     ไฟล์แนบทั้งหมด (ถ้าเลือก "รวมไฟล์แนบ")
+ *   uploads/...     ไฟล์แนบทั้งหมดบนเซิร์ฟเวอร์
  * เก็บที่ uploads/backups/ (ห้ามเข้าถึงผ่านเว็บโดยตรง ดาวน์โหลดผ่านหน้า admin เท่านั้น)
  */
 
@@ -174,23 +174,36 @@ function backup_create(bool $withFiles, string $note = '', string $prefix = 'tea
     $name = backup_new_name($prefix);
     $path = backup_dir() . DIRECTORY_SEPARATOR . $name;
     $sqlFile = tempnam(sys_get_temp_dir(), 'thb');
+    $zip = null;
     try {
+        if ($sqlFile === false) {
+            throw new RuntimeException('สร้างไฟล์ชั่วคราวสำหรับสำรองฐานข้อมูลไม่ได้');
+        }
+        if ($withFiles && ($missing = storage_missing_files())) {
+            throw new RuntimeException('ยังมีไฟล์เดิม ' . count($missing) . ' ไฟล์ที่ไม่อยู่บนเซิร์ฟเวอร์ กรุณานำเข้าที่เมนูไฟล์บนเซิร์ฟเวอร์ก่อน เพื่อสำรองได้ครบทุกไฟล์');
+        }
         $stats = backup_dump_sql($sqlFile);
         $zip = new ZipArchive();
         if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('สร้างไฟล์ ZIP ไม่ได้ (ตรวจสิทธิ์เขียนโฟลเดอร์ uploads/backups)');
         }
-        $zip->addFile($sqlFile, 'database.sql');
+        if (!$zip->addFile($sqlFile, 'database.sql')) {
+            throw new RuntimeException('เพิ่มฐานข้อมูลลงใน ZIP ไม่สำเร็จ');
+        }
         $fileCount = 0;
         $fileBytes = 0;
         if ($withFiles) {
-            foreach (backup_upload_files() as $rel => $full) {
-                $zip->addFile($full, 'uploads/' . $rel);
+            $localFiles = backup_upload_files();
+            foreach ($localFiles as $rel => $full) {
+                if (!is_readable($full) || !$zip->addFile($full, 'uploads/' . $rel)) {
+                    throw new RuntimeException('อ่านไฟล์แนบไม่ได้: ' . $rel);
+                }
                 $fileCount++;
                 $fileBytes += (int)filesize($full);
             }
+
         }
-        $zip->addFromString('manifest.json', json_encode([
+        if (!$zip->addFromString('manifest.json', json_encode([
             'app'         => 'TeachHub PT',
             'version'     => APP_VERSION,
             'created_at'  => date('Y-m-d H:i:s'),
@@ -201,14 +214,23 @@ function backup_create(bool $withFiles, string $note = '', string $prefix = 'tea
             'with_files'  => $withFiles,
             'files'       => $fileCount,
             'files_bytes' => $fileBytes,
-        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-        $zip->close();
+            'storage'     => 'local',
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT))) {
+            throw new RuntimeException('เพิ่มรายละเอียดไฟล์สำรองลงใน ZIP ไม่สำเร็จ');
+        }
+        if (!$zip->close()) {
+            throw new RuntimeException('เขียนไฟล์ ZIP ไม่สำเร็จ (ตรวจพื้นที่ว่างบนเซิร์ฟเวอร์)');
+        }
+        $zip = null;
     } catch (Throwable $ex) {
+        if ($zip instanceof ZipArchive) {
+            try { @$zip->close(); } catch (Throwable $ignored) {}
+        }
         @unlink($path);
         error_log('backup_create: ' . $ex->getMessage());
         return ['ok' => false, 'error' => 'สำรองข้อมูลไม่สำเร็จ: ' . $ex->getMessage(), 'name' => ''];
     } finally {
-        @unlink($sqlFile);
+        if ($sqlFile !== false) @unlink($sqlFile);
     }
     return ['ok' => true, 'error' => '', 'name' => $name];
 }
@@ -335,7 +357,6 @@ function backup_prune_auto(int $keep): void
     $auto = array_values(array_filter(backup_list(), fn($b) => strpos($b['name'], 'auto_') === 0));
     foreach (array_slice($auto, max(1, $keep)) as $b) {
         @unlink(backup_dir() . DIRECTORY_SEPARATOR . $b['name']);
-        drive_delete('backups', $b['name']); // สำเนาใน Google Drive (ถ้ามี) เก็บจำนวนเท่ากัน
     }
 }
 
@@ -353,11 +374,11 @@ function backup_auto_maybe(): string
         return '';
     }
     setting_save('backup_auto_last', (string)time()); // กันสร้างซ้อนกัน
-    $res = backup_create(setting('backup_auto_files', '0') === '1', 'สำรองอัตโนมัติรายวัน', 'auto');
+    $res = backup_create(true, 'สำรองอัตโนมัติรายวัน', 'auto');
     if (!$res['ok']) {
+        setting_save('backup_auto_last', (string)$last); // ให้ลองใหม่เมื่อสำรองไม่ครบ
         return '';
     }
-    drive_backup_copy($res['name']);
     backup_prune_auto((int)setting('backup_keep', '7'));
     log_activity('backup_auto', 'สำรองข้อมูลอัตโนมัติ ' . $res['name']);
     return $res['name'];

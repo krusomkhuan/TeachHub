@@ -10,6 +10,10 @@ $user = require_role('teacher');
 if (is_advisor_staff_only($user)) {
     redirect('review/advisor_reports.php');
 }
+// เจ้าหน้าที่งานพัฒนาหลักสูตรฯ: แดชบอร์ดครูมีแต่งานส่งและลิงก์หน้าส่งงาน จึงเริ่มที่รายงานการส่งงาน
+if (is_curriculum_staff($user)) {
+    redirect('reports/index.php?type=lesson_plan');
+}
 $uid = (int)$user['id'];
 
 // ---------- สรุปงานของฉัน (ทุกภาคเรียน) ----------

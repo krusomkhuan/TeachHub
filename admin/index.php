@@ -15,7 +15,7 @@ $ay = current_academic_year();
 $ayId = $ay ? (int)$ay['id'] : 0;
 
 // ---------- ตัวเลขสรุป ----------
-$teacherCount = (int)db_value("SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')");
+$teacherCount = (int)db_value("SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql('id'));
 $pendingUsers = db_all(
     "SELECT u.id, u.prefix, u.first_name, u.last_name, u.username, u.position, u.created_at, d.name AS department_name
      FROM users u LEFT JOIN departments d ON d.id = u.department_id

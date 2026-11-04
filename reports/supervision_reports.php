@@ -7,12 +7,16 @@
  */
 require_once __DIR__ . '/../config/config.php';
 
-$user = require_role('admin', 'executive', 'supervisor');
-if ($user['role'] === 'supervisor') {
-    redirect('supervisor/supervision_reports.php');
-}
+$user = require_login();
 $uid = (int)$user['id'];
 $mySteps = report_user_steps($uid);
+// ผู้พิจารณาที่กำหนดในตั้งค่าระบบเข้าได้ทุก role (เช่น หัวหน้างานพัฒนาหลักสูตรฯ ที่เป็นครู)
+if (!$mySteps) {
+    $user = require_role('admin', 'executive', 'supervisor');
+    if ($user['role'] === 'supervisor') {
+        redirect('supervisor/supervision_reports.php');
+    }
+}
 $tab = get('tab') ?: ($mySteps ? 'mine' : 'all');
 $chain = report_approval_chain();
 

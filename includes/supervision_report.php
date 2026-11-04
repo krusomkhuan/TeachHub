@@ -16,7 +16,11 @@ function report_approval_chain(): array
         $chain = [];
         for ($i = 1; $i <= 3; $i++) {
             $uid = (int)setting('approver_' . $i . '_user', '0');
-            $u = $uid ? db_one("SELECT id, prefix, first_name, last_name FROM users WHERE id = ? AND status = 'active'", 'i', [$uid]) : null;
+            $u = $uid ? db_one("SELECT id, prefix, first_name, last_name, role, position, status FROM users WHERE id = ? AND status = 'active'", 'i', [$uid]) : null;
+            // เจ้าหน้าที่งานพัฒนาหลักสูตรฯ เป็นผู้จัดทำรายงาน จึงเป็นผู้พิจารณาไม่ได้ แม้บัญชีเคยถูกตั้งไว้ในตั้งค่าระบบ
+            if ($u && is_curriculum_staff($u)) {
+                $u = null;
+            }
             $chain[$i] = [
                 'user_id' => $u ? (int)$u['id'] : 0,
                 'name'    => $u ? full_name($u) : '',
@@ -26,6 +30,22 @@ function report_approval_chain(): array
         }
     }
     return $chain;
+}
+
+/**
+ * บัญชีที่เลือกเป็นผู้พิจารณาขั้นนี้ได้: admin และผู้บริหารที่ใช้งานอยู่
+ * ขั้นที่ 1 เลือกหัวหน้างานพัฒนาหลักสูตรฯ ที่เป็น role ครู/หัวหน้าแผนกได้ด้วย (เจ้าหน้าที่งานพัฒนาหลักสูตรฯ เลือกไม่ได้)
+ */
+function report_approver_candidates(int $step): array
+{
+    return db_all(
+        "SELECT id, prefix, first_name, last_name, role, position FROM users
+         WHERE status = 'active' AND (role IN ('admin','executive')
+            OR (? = 1 AND role IN ('teacher','supervisor') AND position = ?))
+         ORDER BY role, first_name",
+        'is',
+        [$step, PLAN_EVAL_HEAD_POSITION]
+    );
 }
 
 /** ผู้พิจารณาครบทุกขั้นหรือไม่ */

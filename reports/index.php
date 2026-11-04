@@ -5,15 +5,16 @@
  *   ?type=lesson_plan|pa|research|supervision|student_eval
  *   ?ay= &round_id= &dept= &status=   ตัวกรอง
  *   ?export=csv                         ส่งออก Excel (CSV ภาษาไทย ใส่ BOM)
- * สิทธิ์: admin / ผู้บริหาร (ทุกแผนก), หัวหน้าแผนก (เฉพาะแผนกตนเอง)
+ * สิทธิ์: admin / ผู้บริหาร (ทุกแผนก), หัวหน้าแผนก (เฉพาะแผนกตนเอง), เจ้าหน้าที่งานพัฒนาหลักสูตรฯ (ทุกแผนก ยกเว้นรายงาน PA)
  */
 require_once __DIR__ . '/../config/config.php';
 
-$user = require_role('admin', 'executive', 'supervisor');
+$user = require_role_or_curriculum_staff('admin', 'executive', 'supervisor');
 $isSupervisor = $user['role'] === 'supervisor';
+$isCurriculumStaff = is_curriculum_staff($user);
 
 // ---------- ตัวกรอง ----------
-$types = ['lesson_plan', 'pa', 'research', 'supervision', 'student_eval'];
+$types = $isCurriculumStaff ? ['lesson_plan', 'research', 'supervision', 'student_eval'] : ['lesson_plan', 'pa', 'research', 'supervision', 'student_eval'];
 $type = in_array(get('type'), $types, true) ? get('type') : 'lesson_plan';
 // รายงานนิเทศ 2 รูปแบบใช้หน้าตาเดียวกัน ต่างกันที่ข้อความและแหล่งข้อมูล
 $isEval = in_array($type, ['supervision', 'student_eval'], true);
@@ -125,7 +126,7 @@ $qs = function (array $over) use ($type, $f, $isSupervisor): string {
 $pageTitle = 'รายงานผล' . $typeLabel;
 $pageIcon = 'bi-bar-chart-line';
 $breadcrumbs = ['รายงานผล' => null];
-$activeMenu = 'reports/index.php';
+$activeMenu = $isCurriculumStaff ? 'reports/index.php?type=' . $type : 'reports/index.php';
 $pageActions = '<a href="' . e($qs(['export' => 'csv'])) . '" class="btn btn-success"><i class="bi bi-file-earmark-excel me-1"></i>ส่งออก Excel</a>'
     . '<button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>พิมพ์ / PDF</button>';
 require APP_ROOT . '/includes/header.php';

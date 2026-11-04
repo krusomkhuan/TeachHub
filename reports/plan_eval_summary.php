@@ -5,7 +5,7 @@
  *   - ภาพรวมทั้งวิทยาลัย (?dept=0) : สรุปรายแผนกวิชา + รายด้าน/รายข้อของทั้งวิทยาลัย
  *   - ระดับแผนกวิชา (?dept=id)    : สรุปของแผนก + รายการแผนของครูในแผนก
  *   ?ay= ภาคเรียน (all = ทุกภาคเรียน), ?export=csv
- * สิทธิ์: admin, ผู้บริหาร, หัวหน้างาน/เจ้าหน้าที่งานพัฒนาหลักสูตรฯ (ทุกแผนก) / หัวหน้าแผนก (เฉพาะแผนกตนเอง)
+ * สิทธิ์: admin, ผู้บริหาร, หัวหน้างานพัฒนาหลักสูตรฯ และเจ้าหน้าที่งานพัฒนาหลักสูตรฯ (ทุกแผนก) / หัวหน้าแผนก (เฉพาะแผนกตนเอง)
  */
 require_once __DIR__ . '/../config/config.php';
 
@@ -66,7 +66,8 @@ $pageIcon = 'bi-bar-chart-line';
 $breadcrumbs = ['รายงานผลการประเมินแผนฯ' => null];
 $activeMenu = 'reports/plan_eval_summary.php';
 $pageActions = '<a href="' . e($qs(['export' => 'csv'])) . '" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i> ส่งออก Excel</a>'
-    . ' <button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i> พิมพ์</button>';
+    . ' <button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i> พิมพ์</button>'
+    . (pe_report_can_list($user) ? ' <a href="' . e(url('reports/plan_eval_reports.php')) . '" class="btn btn-outline-primary"><i class="bi bi-file-earmark-check me-1"></i> รายงานสรุปเสนอผู้บริหาร</a>' : '');
 require APP_ROOT . '/includes/header.php';
 ?>
 <div class="card mb-4 d-print-none">

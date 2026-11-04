@@ -12,10 +12,12 @@ if (admin_can($user, 'users')) {
     $badgeCounts['admin/users.php'] = (int)db_value("SELECT COUNT(*) FROM users WHERE status = 'pending'")
         + (int)db_value("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'pending'");
 }
-if (admin_can($user, 'supervision_reports') || $user['role'] === 'executive') {
+if (admin_can($user, 'supervision_reports') || $user['role'] === 'executive' || report_user_steps((int)$user['id'])) {
     // รายงานการนิเทศที่รอผู้ใช้คนนี้พิจารณา
     $badgeCounts['reports/supervision_reports.php'] = report_pending_count((int)$user['id']);
 }
+// รายงานสรุปผลประเมินแผนฯ: รอผู้พิจารณาคนนี้ / ถูกส่งกลับให้เจ้าหน้าที่แก้ไข
+$badgeCounts['reports/plan_eval_reports.php'] = is_curriculum_staff($user) ? pe_report_returned_count() : pe_report_pending_count((int)$user['id']);
 if ($user['role'] === 'supervisor') {
     // รายงานของแผนกที่ถูกส่งกลับให้แก้ไข
     $badgeCounts['supervisor/supervision_reports.php'] = (int)db_value(
@@ -50,6 +52,8 @@ $menus = [
             ['รายงานผล', 'reports/index.php', 'bi-bar-chart-line'],
             ['เกณฑ์การส่งรายภาคเรียน', 'reports/teaching_compliance.php', 'bi-clipboard2-check'],
             ['รายงานผลประเมินแผนฯ', 'reports/plan_eval_summary.php', 'bi-graph-up'],
+            ['รายงานสรุปผลประเมินแผนฯ (เสนอ/พิจารณา)', 'reports/plan_eval_reports.php', 'bi-file-earmark-check'],
+            ['รายงานสรุปการนิเทศการสอน', 'reports/supervision_summary.php', 'bi-clipboard2-data'],
         ],
         'ข้อมูลพื้นฐาน' => [
             ['จัดการผู้ใช้', 'admin/users.php', 'bi-people'],
@@ -65,7 +69,7 @@ $menus = [
         'ระบบ' => [
             ['ตั้งค่าระบบ', 'admin/settings.php', 'bi-gear'],
             ['สำรอง / กู้คืนข้อมูล', 'admin/backup.php', 'bi-database-gear'],
-            ['ที่เก็บไฟล์ Google Drive', 'admin/drive.php', 'bi-google'],
+            ['ไฟล์บนเซิร์ฟเวอร์', 'admin/drive.php', 'bi-hdd'],
             ['บันทึกการใช้งาน', 'admin/logs.php', 'bi-clock-history'],
             ['ตรวจสอบระบบ', 'admin/system_check.php', 'bi-heart-pulse'],
         ],
@@ -124,6 +128,8 @@ $menus = [
             ['รายงานผลแยกงาน', 'reports/index.php', 'bi-bar-chart-line'],
             ['เกณฑ์การส่งรายภาคเรียน', 'reports/teaching_compliance.php', 'bi-clipboard2-check'],
             ['รายงานผลประเมินแผนฯ', 'reports/plan_eval_summary.php', 'bi-graph-up'],
+            ['รายงานสรุปผลประเมินแผนฯ (พิจารณา)', 'reports/plan_eval_reports.php', 'bi-file-earmark-check'],
+            ['รายงานสรุปการนิเทศการสอน', 'reports/supervision_summary.php', 'bi-clipboard2-data'],
         ],
         'ข้อมูลทั่วไป' => [
             ['ปฏิทินส่งงาน', 'public/calendar.php', 'bi-calendar-event'],
@@ -156,6 +162,24 @@ if ($user['role'] === 'teacher' && ($reviewTypes = array_values(array_diff(desig
         $reviewMenu[] = ['รายงานผลประเมินแผนฯ', 'reports/plan_eval_summary.php', 'bi-graph-up'];
     }
     $roleMenu = array_slice($roleMenu, 0, 1, true) + ['ตรวจงาน (ตามตำแหน่ง)' => $reviewMenu] + array_slice($roleMenu, 1, null, true);
+}
+// เจ้าหน้าที่งานพัฒนาหลักสูตรฯ: รายงาน รายงานสรุป และปฏิทินกำหนดการ (หน้าเองก็ตรวจสิทธิ์ซ้ำฝั่งเซิร์ฟเวอร์)
+if (is_curriculum_staff($user)) {
+    $roleMenu = array_slice($roleMenu, 0, 1, true) + ['งานพัฒนาหลักสูตรฯ (ตามตำแหน่ง)' => [
+        ['รายงานการส่งโครงการ/แผนการสอน', 'reports/index.php?type=lesson_plan', 'bi-journal-text'],
+        ['รายงานการส่งวิจัยในชั้นเรียน', 'reports/index.php?type=research', 'bi-search'],
+        ['รายงานผลประเมินแผนฯ', 'reports/plan_eval_summary.php', 'bi-graph-up'],
+        ['รายงานสรุปผลประเมินแผนฯ (เสนอ)', 'reports/plan_eval_reports.php', 'bi-file-earmark-check'],
+        ['รายงานสรุปการนิเทศการสอน', 'reports/supervision_summary.php', 'bi-clipboard2-data'],
+        ['จัดทำปฏิทินกำหนดการ (รอบส่งงาน)', 'admin/rounds.php', 'bi-calendar-plus'],
+    ]] + array_slice($roleMenu, 1, null, true);
+}
+// ผู้พิจารณาที่ไม่ใช่ admin/ผู้บริหาร เช่น หัวหน้างานพัฒนาหลักสูตรฯ ที่ถูกเลือกเป็นขั้นที่ 1 ในตั้งค่าระบบ
+if (in_array($user['role'], ['teacher', 'supervisor'], true) && report_user_steps((int)$user['id'])) {
+    $roleMenu = array_slice($roleMenu, 0, 1, true) + ['พิจารณารายงาน' => [
+        ['รายงานการนิเทศ (พิจารณา)', 'reports/supervision_reports.php', 'bi-file-earmark-check'],
+        ['รายงานสรุปผลประเมินแผนฯ (พิจารณา)', 'reports/plan_eval_reports.php', 'bi-file-earmark-check'],
+    ]] + array_slice($roleMenu, 1, null, true);
 }
 // ประเมินแผนการจัดการเรียนรู้: จำนวนแผนที่รอประเมิน (ภาคเรียนปัจจุบัน) / ผลประเมินที่ครูยังไม่รับทราบ
 if (is_plan_evaluator($user)) {
@@ -220,6 +244,10 @@ if (is_advisor_staff_only($user)) {
         $staffMenu['ครูที่ปรึกษา (รายงานของฉัน)'] = $roleMenu['ครูที่ปรึกษา (รายงานของฉัน)'];
     }
     $roleMenu = $staffMenu;
+}
+// เจ้าหน้าที่งานพัฒนาหลักสูตรฯ: ไม่มีเมนูส่งงานและเมนูรายงานครูที่ปรึกษา (หน้าเหล่านั้นถูกปิดที่ admin_perm_enforce ด้วย)
+if (is_curriculum_staff($user)) {
+    unset($roleMenu['ส่งงาน'], $roleMenu['ครูที่ปรึกษา']);
 }
 // งานบุคลากร (v1.19): ทุกคนบันทึกข้อมูลของตนเอง / ผู้พิจารณาใบลา / ผู้ดูแลงานบุคลากร / ผู้บริหารดูรายงาน
 // ปิดระบบอยู่ (ตั้งค่าระบบ → hr_enabled): ไม่แสดงเมนู ยกเว้นผู้ดูแลระบบเต็มสิทธิ์ (แสดงป้าย "ปิดอยู่" ไว้ทดสอบ)
@@ -289,7 +317,7 @@ $activeMenu = $activeMenu ?? $currentPath; // หน้าย่อยกำห�
                 <div class="sidebar-heading"><?= e($group) ?></div>
             <?php endif; ?>
             <?php foreach ($items as [$label, $path, $icon]):
-                $exists = is_file(APP_ROOT . '/' . $path);
+                $exists = is_file(APP_ROOT . '/' . strtok($path, '?'));
                 $active = ($activeMenu === $path);
                 $count = $badgeCounts[$path] ?? 0;
                 ?>

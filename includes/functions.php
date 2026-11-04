@@ -384,7 +384,7 @@ function remaining_text(int $seconds): string
 function role_labels(): array
 {
     return [
-        'admin'      => 'เจ้าหน้าที่งานพัฒนาหลักสูตรและการจัดการเรียนรู้ (ผู้ดูแลระบบ)',
+        'admin'      => 'ผู้ดูแลระบบ',
         'supervisor' => 'หัวหน้าแผนก/ผู้นิเทศ',
         'teacher'    => 'ครูผู้สอน',
         'executive'  => 'ผู้บริหาร',
@@ -437,6 +437,12 @@ function is_executive_position(string $position): bool
 function is_unit_staff_position(string $position): bool
 {
     return mb_strpos(trim(preg_replace('/\s+/u', ' ', $position)), 'เจ้าหน้าที่งาน') === 0;
+}
+
+/** ตำแหน่งหัวหน้างาน (เช่น หัวหน้างานบุคลากร) */
+function is_unit_head_position(string $position): bool
+{
+    return mb_strpos(trim(preg_replace('/\s+/u', ' ', $position)), 'หัวหน้างาน') === 0;
 }
 
 /** วิทยฐานะ (สายครู + สายผู้บริหาร เช่น ผู้อำนวยการ/รองผู้อำนวยการ) */
@@ -813,8 +819,6 @@ function handle_upload(array $file, string $subdir, array $allowedExt, int $maxB
     }
     @chmod($dir . DIRECTORY_SEPARATOR . $stored, 0644);
 
-    drive_after_upload($subdir, $stored);
-
     // ตัดชื่อไฟล์ต้นฉบับให้สั้นพอเก็บในฐานข้อมูล
     $original = mb_substr(preg_replace('/[\x00-\x1F\x7F]/u', '', $original), 0, 200);
 
@@ -841,12 +845,11 @@ function delete_upload(string $subdir, ?string $stored): void
     if (is_file($path)) {
         @unlink($path);
     }
-    drive_delete($subdir, basename($stored));
 }
 
 /**
  * ส่งไฟล์ให้ผู้ใช้ดาวน์โหลด/เปิดดู (ใช้ในสคริปต์ดาวน์โหลดที่ตรวจสิทธิ์แล้ว)
- * ไฟล์บนโฮสต์ส่งตรง ถ้าไม่มีจึงดึงจาก Google Drive
+ * อ่านไฟล์จากเครื่องที่ติดตั้งระบบเท่านั้น
  */
 function send_file(string $subdir, string $stored, string $downloadName, bool $inline = false): void
 {
@@ -861,9 +864,7 @@ function send_file(string $subdir, string $stored, string $downloadName, bool $i
         'X-Content-Type-Options: nosniff',
     ];
     if (!is_file($path)) {
-        if (!drive_send($subdir, basename($stored), $headers)) {
-            abort_page(404, 'ไม่พบไฟล์', 'ไฟล์อาจถูกลบหรือย้ายไปแล้ว');
-        }
+        abort_page(404, 'ไม่พบไฟล์บนเครื่องที่ติดตั้งระบบ', 'หากเป็นไฟล์เดิมที่เคยย้ายออกจากเครื่อง ให้ผู้ดูแลนำไฟล์กลับเข้าระบบก่อน');
     }
     if (ob_get_level()) {
         ob_end_clean();
@@ -1120,6 +1121,7 @@ function log_action_groups(): array
             'user_create' => 'เพิ่มผู้ใช้', 'user_update' => 'แก้ไขผู้ใช้', 'user_approve' => 'อนุมัติผู้ใช้',
             'user_suspend' => 'ระงับผู้ใช้', 'user_activate' => 'เปิดใช้งานผู้ใช้', 'user_delete' => 'ลบผู้ใช้',
             'user_reset_password' => 'รีเซ็ตรหัสผ่านผู้ใช้', 'reset_request_reject' => 'ปฏิเสธคำขอรีเซ็ตรหัสผ่าน',
+            'forgot_password_email' => 'ส่งรหัสชั่วคราวทางอีเมล', 'forgot_password_mail_failed' => 'ส่งรหัสชั่วคราวทางอีเมลไม่สำเร็จ',
         ]],
         'master' => ['ข้อมูลพื้นฐาน', [
             'department_save' => 'บันทึกแผนกวิชา', 'department_delete' => 'ลบแผนกวิชา',
@@ -1179,19 +1181,46 @@ function unknown_login_detail(string $login): string
  * จำกัดการล็อกอินผิด 5 ครั้งใน 5 นาที ต่อบัญชีร่วมกับ IP
  * ใช้ user_id เพื่อให้ชื่อผู้ใช้และอีเมลของบัญชีเดียวกันนับร่วมกัน
  * ชื่อที่ไม่พบในระบบใช้คีย์ใน detail แทน ไม่รวมกับผู้ใช้อื่นที่ใช้ IP เดียวกัน
+ * ล็อกอินสำเร็จจาก IP เดิมจะเริ่มนับใหม่ ความผิดพลาดก่อนหน้านั้นไม่ถูกนับอีก
+ *
+ * คืนจำนวนวินาทีที่ต้องรอจนกว่าจะลองใหม่ได้ (0 = ไม่ถูกจำกัด)
  */
-function login_locked(string $ip, ?int $userId, string $login, int $maxAttempts = 5, int $minutes = 5): bool
+function login_lock_seconds(string $ip, ?int $userId, string $login, int $maxAttempts = 5, int $minutes = 5): int
 {
     $accountCondition = $userId !== null ? 'user_id = ?' : 'user_id IS NULL AND detail = ?';
     $accountKey = $userId ?? unknown_login_detail($login);
-    $count = (int)db_value(
-        'SELECT COUNT(*) FROM activity_logs
-         WHERE action = ? AND ip_address = ? AND ' . $accountCondition . '
-           AND created_at > (NOW() - INTERVAL ? MINUTE)',
-        $userId !== null ? 'ssii' : 'sssi',
-        ['login_failed', $ip, $accountKey, $minutes]
+    $types = $userId !== null ? 'issii' : 'isssi';
+    $params = [$minutes, 'login_failed', $ip, $accountKey, $minutes];
+
+    // แยกคำสั่ง เพราะ MySQL อ้างตาราง TEMPORARY ซ้ำในคำสั่งเดียวไม่ได้ (ใช้ใน tests/login_lockout.php)
+    $lastSuccess = $userId === null ? null : db_value(
+        'SELECT MAX(created_at) FROM activity_logs WHERE action = ? AND user_id = ? AND ip_address = ?',
+        'sis',
+        ['login', $userId, $ip]
     );
-    return $count >= $maxAttempts;
+    $sinceCondition = '';
+    if ($lastSuccess !== null) {
+        $sinceCondition = ' AND created_at > ?';
+        $types .= 's';
+        $params[] = $lastSuccess;
+    }
+
+    // ถูกจำกัดเมื่อมีความผิดพลาดครบโควตา และปลดเมื่อครั้งที่ N นับจากล่าสุดพ้นช่วงเวลา
+    $remaining = db_value(
+        'SELECT TIMESTAMPDIFF(SECOND, NOW() - INTERVAL ? MINUTE, created_at) FROM activity_logs
+         WHERE action = ? AND ip_address = ? AND ' . $accountCondition . '
+           AND created_at > (NOW() - INTERVAL ? MINUTE)' . $sinceCondition . '
+         ORDER BY created_at DESC LIMIT 1 OFFSET ' . max(0, $maxAttempts - 1),
+        $types,
+        $params
+    );
+    return $remaining === null ? 0 : max(1, (int)$remaining);
+}
+
+/** ตรวจว่าการล็อกอินนี้ถูกจำกัดชั่วคราวอยู่หรือไม่ */
+function login_locked(string $ip, ?int $userId, string $login, int $maxAttempts = 5, int $minutes = 5): bool
+{
+    return login_lock_seconds($ip, $userId, $login, $maxAttempts, $minutes) > 0;
 }
 
 // =====================================================================
@@ -1337,12 +1366,12 @@ function stat_department_submission(int $ayId = 0): array
         return "(SELECT COUNT(DISTINCT s.teacher_id) FROM `$table` s
                  JOIN users u2 ON u2.id = s.teacher_id
                  JOIN submission_rounds r ON r.id = s.round_id
-                 WHERE u2.department_id = d.id AND (? = 0 OR r.academic_year_id = ?))";
+                 WHERE u2.department_id = d.id AND (? = 0 OR r.academic_year_id = ?)" . curriculum_staff_exclude_sql('u2.id') . ')';
     };
     return db_all(
         "SELECT d.id, d.name,
             (SELECT COUNT(*) FROM users u WHERE u.department_id = d.id AND u.status = 'active'
-                AND u.role IN ('teacher','supervisor')) AS teachers,
+                AND u.role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql() . ") AS teachers,
             " . $sub('lesson_plans') . " AS lesson_plan,
             " . $sub('pa_submissions') . " AS pa,
             " . $sub('research_submissions') . " AS research
@@ -1360,7 +1389,7 @@ function stat_round_progress(array $round, int $deptId = 0): array
     $table = submission_table($round['type']);
     $teachers = (int)db_value(
         "SELECT COUNT(*) FROM users WHERE status = 'active' AND role IN ('teacher','supervisor')
-         AND (? = 0 OR department_id = ?)",
+         AND (? = 0 OR department_id = ?)" . curriculum_staff_exclude_sql('id'),
         'ii',
         [$deptId, $deptId]
     );
@@ -1369,7 +1398,7 @@ function stat_round_progress(array $round, int $deptId = 0): array
                 COUNT(DISTINCT CASE WHEN s.is_late = 1 THEN s.teacher_id END) AS late,
                 COALESCE(SUM(s.status = 'pending'), 0) AS pending
          FROM `$table` s JOIN users u ON u.id = s.teacher_id
-         WHERE s.round_id = ? AND (? = 0 OR u.department_id = ?)",
+         WHERE s.round_id = ? AND (? = 0 OR u.department_id = ?)" . curriculum_staff_exclude_sql(),
         'iii',
         [(int)$round['id'], $deptId, $deptId]
     );

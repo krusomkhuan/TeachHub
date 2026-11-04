@@ -39,7 +39,7 @@ if (is_post()) {
         $name = mb_substr(preg_replace('/\s+/u', ' ', post('group_name')), 0, 100);
         $count = post('student_count');
         $validTeachers = $teacherIds ? array_map('intval', array_column(db_all(
-            "SELECT id FROM users WHERE status = 'active' AND role IN ('teacher','supervisor') AND id IN (" . implode(',', $teacherIds) . ')'
+            "SELECT id FROM users WHERE status = 'active' AND role IN ('teacher','supervisor') AND id IN (" . implode(',', $teacherIds) . ')' . curriculum_staff_exclude_sql('id')
         ), 'id')) : [];
         if (!$teacherIds || count($validTeachers) !== count($teacherIds)) {
             $errors['teacher_id'] = 'กรุณาเลือกครูที่ปรึกษาอย่างน้อย 1 คน';
@@ -128,7 +128,7 @@ if (is_post()) {
             "INSERT IGNORE INTO advisor_groups (academic_year_id, teacher_id, department_id, group_name, student_count, created_by)
              SELECT ?, g.teacher_id, g.department_id, g.group_name, g.student_count, ?
              FROM advisor_groups g JOIN users u ON u.id = g.teacher_id
-             WHERE g.academic_year_id = ? AND u.status = 'active'",
+             WHERE g.academic_year_id = ? AND u.status = 'active'" . curriculum_staff_exclude_sql('g.teacher_id'),
             'iii',
             [$ayId, (int)$user['id'], $fromAy]
         );
@@ -200,7 +200,7 @@ foreach ($groups as $g) {
 $teachers = db_all(
     "SELECT u.id, u.prefix, u.first_name, u.last_name, u.department_id, d.name AS department_name
      FROM users u LEFT JOIN departments d ON d.id = u.department_id
-     WHERE u.status = 'active' AND u.role IN ('teacher','supervisor') ORDER BY d.name, u.first_name"
+     WHERE u.status = 'active' AND u.role IN ('teacher','supervisor')" . curriculum_staff_exclude_sql() . ' ORDER BY d.name, u.first_name'
 );
 $departments = db_all('SELECT id, name FROM departments ORDER BY name');
 $skips = $ay && $ay['start_date'] ? db_all(

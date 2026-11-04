@@ -23,7 +23,8 @@ function admin_permission_groups(): array
             'pa'                 => ['ข้อตกลง PA', ['admin/pa.php'], false],
             'research'           => ['วิจัยในชั้นเรียน', ['admin/research.php'], false],
             'plan_eval'          => ['ประเมินแผนการจัดการเรียนรู้ + รายงานผลประเมินแผนฯ',
-                ['review/plan_evaluations.php', 'reports/plan_eval_summary.php', 'reports/plan_eval_print.php'], false],
+                ['review/plan_evaluations.php', 'reports/plan_eval_summary.php', 'reports/plan_eval_print.php',
+                    'reports/plan_eval_reports.php', 'reports/plan_eval_report.php', 'reports/plan_eval_report_print.php'], false],
             'plan_eval_criteria' => ['รายการแบบประเมินแผนฯ', ['admin/plan_eval_criteria.php'], false],
         ],
         'นิเทศการสอน' => [
@@ -45,7 +46,7 @@ function admin_permission_groups(): array
         ],
         'กำหนดการ & รายงาน' => [
             'rounds'  => ['รอบการส่งงาน', ['admin/rounds.php'], false],
-            'reports' => ['รายงานผล + เกณฑ์การส่งรายภาคเรียน', ['reports/index.php', 'reports/teaching_compliance.php'], false],
+            'reports' => ['รายงานผล + เกณฑ์การส่งรายภาคเรียน', ['reports/index.php', 'reports/teaching_compliance.php', 'reports/supervision_summary.php'], false],
         ],
         'ข้อมูลพื้นฐาน' => [
             'users'          => ['จัดการผู้ใช้ (อนุมัติ/แก้ไข/รีเซ็ตรหัสผ่าน — ยกเว้นบัญชีผู้ดูแลระบบ)', ['admin/users.php', 'admin/user_edit.php'], true],
@@ -62,7 +63,7 @@ function admin_permission_groups(): array
         'ระบบ' => [
             'settings'     => ['ตั้งค่าระบบ', ['admin/settings.php'], true],
             'backup'       => ['สำรอง / กู้คืนข้อมูล', ['admin/backup.php'], true],
-            'drive'        => ['ที่เก็บไฟล์ Google Drive', ['admin/drive.php'], true],
+            'drive'        => ['ไฟล์บนเซิร์ฟเวอร์ / นำเข้าไฟล์เดิม', ['admin/drive.php'], true],
             'logs'         => ['บันทึกการใช้งาน', ['admin/logs.php'], true],
             'system_check' => ['ตรวจสอบระบบ', ['admin/system_check.php'], false],
         ],
@@ -165,6 +166,15 @@ function current_script_path(): string
 /** ตรวจสิทธิ์เจ้าหน้าที่ดูแลระบบกับหน้าปัจจุบัน (เรียกจาก require_login ทุกหน้าหลังบ้าน) */
 function admin_perm_enforce(array $user): void
 {
+    // เจ้าหน้าที่งานพัฒนาหลักสูตรฯ ไม่ส่งงาน และไม่เกี่ยวกับรายงานโฮมรูม/เยี่ยมบ้านซึ่งเป็นหน้าที่ของงานครูที่ปรึกษาและแนะแนว
+    // (ดูรายงานการส่งงานได้ที่ reports/index.php)
+    $staffBlocked = ['teacher/teaching_subjects.php', 'teacher/lesson_plans.php', 'teacher/research.php', 'teacher/pa.php',
+        'teacher/advisor_reports.php', 'teacher/home_visits.php', 'reports/advisor_teacher.php', 'reports/home_visit_teacher.php',
+        'advisor_image.php', 'home_visit_image.php'];
+    if (is_curriculum_staff($user) && in_array(current_script_path(), $staffBlocked, true)) {
+        log_activity('access_denied', 'เจ้าหน้าที่งานพัฒนาหลักสูตรฯ เปิดหน้า ' . ($_SERVER['REQUEST_URI'] ?? ''));
+        abort_page(403, 'ไม่มีสิทธิ์เข้าถึงหน้านี้', 'เจ้าหน้าที่งานพัฒนาหลักสูตรฯ ไม่ใช้หน้าส่งงานและหน้ารายงานครูที่ปรึกษา');
+    }
     if (!is_limited_admin($user)) {
         return;
     }
@@ -180,6 +190,17 @@ function admin_perm_enforce(array $user): void
 /** ชื่อสิทธิ์สำหรับแสดงผล (แยกผู้ดูแลระบบเต็มสิทธิ์ / เจ้าหน้าที่ดูแลระบบ) */
 function user_role_label(array $user): string
 {
+    if (is_curriculum_staff($user)) {
+        return 'เจ้าหน้าที่งานพัฒนาหลักสูตรฯ';
+    }
+    if (($user['role'] ?? '') === 'teacher' && is_curriculum_head($user)) {
+        return 'หัวหน้างานพัฒนาหลักสูตรฯ';
+    }
+    // เจ้าหน้าที่งาน/หัวหน้างานอื่นที่เป็น role ครู: แสดงตำแหน่งแทน "ครูผู้สอน"
+    $position = normalize_position((string)($user['position'] ?? ''));
+    if (($user['role'] ?? '') === 'teacher' && (is_unit_staff_position($position) || is_unit_head_position($position))) {
+        return $position;
+    }
     return is_limited_admin($user) ? 'เจ้าหน้าที่ดูแลระบบ (กำหนดสิทธิ์)' : role_label((string)$user['role']);
 }
 
