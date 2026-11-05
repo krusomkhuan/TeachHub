@@ -28,6 +28,42 @@ if (!function_exists('str_contains')) {
 // 1) ฟังก์ชันฐานข้อมูล (ใช้ Prepared Statements ทุกคำสั่ง)
 // =====================================================================
 
+/** ข้อผิดพลาดนี้เกิดจากการเชื่อมต่อฐานข้อมูลหลุดหรือไม่ (2006 gone away, 2013 lost connection, 4031 หมดเวลา) */
+function db_connection_lost(Throwable $ex): bool
+{
+    return $ex instanceof mysqli_sql_exception && in_array((int)$ex->getCode(), [2006, 2013, 4031], true);
+}
+
+/** เชื่อมต่อฐานข้อมูลใหม่บน object เดิมที่ db() เก็บไว้ พร้อมตั้งค่า session ให้เหมือนใน config/db.php */
+function db_reconnect(): void
+{
+    $conn = db();
+    $conn->connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+    $conn->set_charset('utf8mb4');
+    $conn->query("SET time_zone = '+07:00'");
+}
+
+/**
+ * prepare คำสั่ง SQL โดยลองเชื่อมต่อใหม่ 1 ครั้งเมื่อการเชื่อมต่อหลุด
+ * ลองใหม่เฉพาะ request แบบ GET: transaction ของระบบอยู่ในขั้นตอน POST ทั้งหมด
+ * ถ้าต่อใหม่กลาง transaction คำสั่งก่อนหน้าจะหายไปและคำสั่งที่เหลือจะถูกบันทึกเพียงบางส่วน
+ * และลองเฉพาะตอน prepare ซึ่งยังไม่ได้รันคำสั่ง จึงไม่มีทางบันทึกข้อมูลซ้ำ
+ */
+function db_prepare(string $sql): mysqli_stmt
+{
+    try {
+        return db()->prepare($sql);
+    } catch (mysqli_sql_exception $ex) {
+        if (!db_connection_lost($ex) || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+            throw $ex;
+        }
+        error_log('DB connection lost, reconnecting: ' . $ex->getMessage());
+        sleep(1); // เผื่อเวลาให้ MySQL ที่กำลังรีสตาร์ตกลับมา
+        db_reconnect();
+        return db()->prepare($sql);
+    }
+}
+
 /**
  * เตรียมและรันคำสั่ง SQL พร้อมผูกค่าพารามิเตอร์
  * @param string $sql    คำสั่ง SQL ที่ใช้ ? แทนค่า
@@ -36,7 +72,7 @@ if (!function_exists('str_contains')) {
  */
 function db_query(string $sql, string $types = '', array $params = []): mysqli_stmt
 {
-    $stmt = db()->prepare($sql);
+    $stmt = db_prepare($sql);
     if ($types !== '') {
         $stmt->bind_param($types, ...$params);
     }
@@ -247,6 +283,30 @@ function abort_page(int $code, string $title, string $message = ''): void
         . '<a href="' . e(url('index.php')) . '" class="btn btn-warning mt-2">กลับหน้าแรก</a>'
         . ' <a href="javascript:history.back()" class="btn btn-outline-secondary mt-2">ย้อนกลับ</a></div></body></html>';
     exit;
+}
+
+/**
+ * จัดการ Exception ที่ไม่มีใครรับ: เก็บรายละเอียดลง log และแสดงหน้าแจ้งข้อผิดพลาดพร้อมรหัสอ้างอิง
+ * รายละเอียด (ข้อความ/ไฟล์) แสดงบนหน้าเว็บเฉพาะโหมดพัฒนา (APP_DEBUG) เท่านั้น
+ */
+function app_exception_handler(Throwable $ex): void
+{
+    $ref = bin2hex(random_bytes(4));
+    error_log('[ref ' . $ref . '] ' . $ex);
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, (string)$ex . PHP_EOL);
+        exit(255);
+    }
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    $lost = db_connection_lost($ex);
+    $message = ($lost ? 'ระบบฐานข้อมูลขัดข้องชั่วคราว กรุณารอสักครู่แล้วลองใหม่อีกครั้ง' : 'กรุณาลองใหม่อีกครั้ง หากยังพบปัญหาให้แจ้งผู้ดูแลระบบ')
+        . ' (รหัสอ้างอิง ' . $ref . ')';
+    if (APP_DEBUG) {
+        $message .= ' — ' . get_class($ex) . ': ' . $ex->getMessage() . ' @ ' . $ex->getFile() . ':' . $ex->getLine();
+    }
+    abort_page($lost ? 503 : 500, $lost ? 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' : 'เกิดข้อผิดพลาดในระบบ', $message);
 }
 
 /** IP ของผู้ใช้ (ใช้ REMOTE_ADDR เพื่อป้องกันการปลอม header) */

@@ -7,8 +7,12 @@
 
 // ---------------------------------------------------------------
 // โหมดพัฒนา: true = แสดง error (ใช้ตอนพัฒนา), false = ซ่อน (ใช้งานจริง)
+// เปิดเองเฉพาะ command line และการเปิดจากเครื่องตัวเองผ่าน localhost เว็บจริงจึงไม่แสดง error แม้อัปโหลดไฟล์นี้ทับ
 // ---------------------------------------------------------------
-define('APP_DEBUG', true);
+define('APP_DEBUG', PHP_SAPI === 'cli' || (
+    in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true)
+    && in_array(strtolower((string)preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? ''))), ['localhost', '127.0.0.1', '[::1]'], true)
+));
 
 define('APP_NAME', 'TeachHub PT');
 define('APP_VERSION', '1.21.0');
@@ -75,6 +79,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // ---------------------------------------------------------------
 require_once __DIR__ . '/db.php';
 require_once APP_ROOT . '/includes/functions.php';
+set_exception_handler('app_exception_handler');
 require_once APP_ROOT . '/includes/auth.php';
 require_once APP_ROOT . '/includes/admin_perm.php';
 require_once APP_ROOT . '/includes/submissions.php';

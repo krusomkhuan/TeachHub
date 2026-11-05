@@ -166,14 +166,15 @@ function current_script_path(): string
 /** ตรวจสิทธิ์เจ้าหน้าที่ดูแลระบบกับหน้าปัจจุบัน (เรียกจาก require_login ทุกหน้าหลังบ้าน) */
 function admin_perm_enforce(array $user): void
 {
-    // เจ้าหน้าที่งานพัฒนาหลักสูตรฯ ไม่ส่งงาน และไม่เกี่ยวกับรายงานโฮมรูม/เยี่ยมบ้านซึ่งเป็นหน้าที่ของงานครูที่ปรึกษาและแนะแนว
+    // เจ้าหน้าที่งานพัฒนาหลักสูตรฯ ไม่ส่งงาน ไม่ได้รับการนิเทศ/ประเมินแผน และไม่เกี่ยวกับรายงานโฮมรูม/เยี่ยมบ้านซึ่งเป็นหน้าที่ของงานครูที่ปรึกษาและแนะแนว
     // (ดูรายงานการส่งงานได้ที่ reports/index.php)
     $staffBlocked = ['teacher/teaching_subjects.php', 'teacher/lesson_plans.php', 'teacher/research.php', 'teacher/pa.php',
+        'teacher/supervision.php', 'teacher/plan_evaluations.php',
         'teacher/advisor_reports.php', 'teacher/home_visits.php', 'reports/advisor_teacher.php', 'reports/home_visit_teacher.php',
         'advisor_image.php', 'home_visit_image.php'];
     if (is_curriculum_staff($user) && in_array(current_script_path(), $staffBlocked, true)) {
         log_activity('access_denied', 'เจ้าหน้าที่งานพัฒนาหลักสูตรฯ เปิดหน้า ' . ($_SERVER['REQUEST_URI'] ?? ''));
-        abort_page(403, 'ไม่มีสิทธิ์เข้าถึงหน้านี้', 'เจ้าหน้าที่งานพัฒนาหลักสูตรฯ ไม่ใช้หน้าส่งงานและหน้ารายงานครูที่ปรึกษา');
+        abort_page(403, 'ไม่มีสิทธิ์เข้าถึงหน้านี้', 'เจ้าหน้าที่งานพัฒนาหลักสูตรฯ ไม่ใช้หน้าส่งงาน หน้าผลการนิเทศ/ผลประเมินแผนของตนเอง และหน้ารายงานครูที่ปรึกษา');
     }
     if (!is_limited_admin($user)) {
         return;
