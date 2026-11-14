@@ -36,6 +36,12 @@ $isLong = fn($v) => mb_strlen((string)$v) > 80 || strpos((string)$v, "\n") !== f
 </div>
 
 <?php
+// โครงการสอน: ย้ายกลับหมวดแผนการจัดการเรียนรู้ได้ ถ้าอยู่ผิดหมวด
+if ($subType === 'lesson_plan' && ($sub['doc_type'] ?? '') === 'outline' && can_move_lesson_doc($user, $sub)) {
+    $movePlanId = (int)$sub['id'];
+    $moveTo = 'plan';
+    require APP_ROOT . '/includes/partials/plan_move_outline.php';
+}
 // แผนการจัดการเรียนรู้: แสดงผลการประเมินแผน (แบบประเมิน 3 ตอน) และลิงก์ไปหน้าประเมิน/ดูผล
 // ครูเจ้าของแผนเห็นผลเมื่อผู้ประเมิน "ส่งผลการประเมิน" แล้วเท่านั้น (ร่างไม่แสดง)
 if ($subType === 'lesson_plan' && ($sub['doc_type'] ?? '') === 'plan'):
@@ -47,6 +53,11 @@ if ($subType === 'lesson_plan' && ($sub['doc_type'] ?? '') === 'plan'):
         $detailEval = null;
     }
     $detailLink = $detailOwn ? 'teacher/plan_evaluations.php?view=' : (is_plan_evaluator($user) ? 'review/plan_evaluations.php?view=' : '');
+    if ($detailCanEval) {
+        $movePlanId = (int)$sub['id'];
+        $moveTo = 'outline';
+        require APP_ROOT . '/includes/partials/plan_move_outline.php';
+    }
     if ($detailEval || $detailCanEval):
         $detailItems = $detailFinal ? plan_eval_items((int)$detailEval['id']) : ['check' => [], 'quality' => []];
         $detailCats = plan_eval_category_summary($detailItems['quality']);

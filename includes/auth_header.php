@@ -14,6 +14,7 @@ $logo = logo_url();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> | <?= e(system_name()) ?></title>
+    <?php require __DIR__ . '/partials/theme_init.php'; ?>
     <link rel="icon" href="<?= e(asset('img/logo.svg')) ?>" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,6 +30,7 @@ $logo = logo_url();
     </style>
 </head>
 <body class="auth-body">
+<?php $themeToggleClass = 'btn btn-light border shadow-sm position-fixed top-0 end-0 m-3 auth-theme-toggle'; require __DIR__ . '/partials/theme_toggle.php'; ?>
 <div class="auth-wrapper">
     <!-- ฝั่งซ้าย: แบรนด์ของระบบ -->
     <aside class="auth-brand">

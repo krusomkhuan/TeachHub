@@ -45,7 +45,7 @@ function admin_permission_groups(): array
                     'hr/orders_manage.php', 'hr/events_manage.php', 'hr/reports.php', 'hr/report_print.php'], true],
         ],
         'กำหนดการ & รายงาน' => [
-            'rounds'  => ['รอบการส่งงาน', ['admin/rounds.php'], false],
+            'rounds'  => ['จัดทำปฏิทินกำหนดการ (รอบส่งงาน)', ['admin/rounds.php'], false],
             'reports' => ['รายงานผล + เกณฑ์การส่งรายภาคเรียน', ['reports/index.php', 'reports/teaching_compliance.php', 'reports/supervision_summary.php'], false],
         ],
         'ข้อมูลพื้นฐาน' => [

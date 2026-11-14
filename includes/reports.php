@@ -54,11 +54,15 @@ function report_person_status(array $r): string
 function report_submission_rows(string $type, array $f): array
 {
     $table = submission_table($type);
-    // รายงานแผนการสอน: ถ้าไม่ระบุรอบ นับเฉพาะแผนการจัดการเรียนรู้ (ไม่รวมโครงการสอน) — เป็นข้อความคงที่
-    $docSql = ($type === 'lesson_plan' && empty($f['round_id'])) ? " AND x.doc_type = 'plan'" : '';
+    // แยกจำนวนเอกสาร โดยยอดรวมและสถานะนับทั้งโครงการสอนและแผนการจัดการเรียนรู้
+    $docCountsSql = $type === 'lesson_plan'
+        ? "COALESCE(SUM(s.doc_type = 'outline'), 0) AS outline_count,
+                COALESCE(SUM(s.doc_type = 'plan'), 0) AS plan_count,"
+        : '';
     $rows = db_all(
         "SELECT u.id, CONCAT(u.prefix, u.first_name, ' ', u.last_name) AS teacher_name, u.department_id,
                 COALESCE(d.name, '-') AS department_name,
+                $docCountsSql
                 COUNT(s.id) AS sent,
                 COALESCE(SUM(s.status = 'approved'), 0) AS approved,
                 COALESCE(SUM(s.status = 'revision'), 0) AS revision,
@@ -69,7 +73,7 @@ function report_submission_rows(string $type, array $f): array
          LEFT JOIN departments d ON d.id = u.department_id
          LEFT JOIN (
             SELECT x.* FROM `$table` x JOIN submission_rounds r ON r.id = x.round_id
-            WHERE (? = 0 OR x.round_id = ?) AND (? = 0 OR r.academic_year_id = ?)$docSql
+            WHERE (? = 0 OR x.round_id = ?) AND (? = 0 OR r.academic_year_id = ?)
          ) s ON s.teacher_id = u.id
          WHERE u.status = 'active' AND u.role IN ('teacher','supervisor') AND (? = 0 OR u.department_id = ?)" . curriculum_staff_exclude_sql() . "
          GROUP BY u.id, u.prefix, u.first_name, u.last_name, u.department_id, d.name

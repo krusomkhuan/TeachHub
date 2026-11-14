@@ -15,6 +15,16 @@ $uid = (int)$user['id'];
 $type = 'lesson_plan';
 $errors = [];
 
+/** รหัสรายวิชาที่สอนซึ่งต้องกรอกข้อมูลให้ครบก่อนส่งฉบับแก้ไขของแผนนี้ (โครงการสอนไม่ต้องตรวจ) */
+function lesson_plan_info_missing_id(array $sub): ?int
+{
+    if ($sub['doc_type'] !== 'plan') {
+        return null;
+    }
+    $ayId = (int)($sub['academic_year_id'] ?: round_academic_year_id(submission_round($sub)));
+    return teaching_info_missing_id((int)$sub['teacher_id'], $ayId, (string)$sub['subject_code']);
+}
+
 // =====================================================================
 // POST
 // =====================================================================
@@ -53,6 +63,10 @@ if (is_post()) {
                 $errors['teaching_subject_id'] = 'กรุณาเลือกรายวิชาที่สอนในภาคเรียนของรอบนี้ (เพิ่มได้ที่เมนู รายวิชาที่สอน)';
             } else {
                 [$code, $name, $level] = [$ts['subject_code'], $ts['subject_name'], $ts['level']];
+                // แผนการจัดการเรียนรู้: ต้องกรอกข้อมูลรายวิชาครบก่อน เพราะแบบประเมินแผนใช้ข้อมูลชุดนี้
+                if ($docType === 'plan' && !isset($errors['doc_type']) && teaching_info_missing_id($uid, $ayId, $code) !== null) {
+                    $errors['teaching_subject_id'] = 'กรุณากรอกข้อมูลรายวิชานี้ให้ครบที่เมนู รายวิชาที่สอน ก่อนส่งแผนการจัดการเรียนรู้';
+                }
             }
         }
         if ($units < 1 || $units > 99) {
@@ -91,7 +105,9 @@ if (is_post()) {
         if (!$sub) {
             abort_page(404, 'ไม่พบงาน');
         }
-        $error = submission_resubmit($type, $sub, $uid, post('note'));
+        $error = lesson_plan_info_missing_id($sub) !== null
+            ? 'กรุณากรอกข้อมูลรายวิชานี้ให้ครบที่เมนู รายวิชาที่สอน ก่อนส่งแผนการจัดการเรียนรู้'
+            : submission_resubmit($type, $sub, $uid, post('note'));
         if ($error === '') {
             flash('success', 'ส่งฉบับที่ ' . ((int)$sub['current_version'] + 1) . ' เรียบร้อยแล้ว สถานะเปลี่ยนเป็น "รอตรวจ"');
             redirect('teacher/lesson_plans.php?id=' . (int)$sub['id']);
@@ -132,6 +148,7 @@ if ($viewId > 0) {
         abort_page(404, 'ไม่พบงาน', 'งานนี้ไม่มีอยู่ หรือไม่ใช่งานของท่าน');
     }
     $blockReason = submission_resubmit_block_reason($sub);
+    $infoMissingId = $blockReason === '' ? lesson_plan_info_missing_id($sub) : null;
     $lastReview = submission_last_review($type, (int)$sub['id']);
 
     $pageTitle = lesson_doc_label($sub['doc_type']) . ': ' . $sub['subject_code'];
@@ -155,12 +172,16 @@ if ($viewId > 0) {
                 <div class="card-body">
                     <?php if ($blockReason !== ''): ?>
                         <div class="text-muted"><i class="bi bi-lock me-1"></i><?= e($blockReason) ?></div>
+                    <?php elseif ($infoMissingId !== null): ?>
+                        <div class="alert alert-warning mb-0"><i class="bi bi-exclamation-triangle me-1"></i>กรุณากรอกข้อมูลรายวิชานี้ให้ครบก่อนส่งแผนการจัดการเรียนรู้ ฉบับแก้ไข
+                            · <a href="<?= e(url('teacher/teaching_subjects.php?edit=' . $infoMissingId)) ?>" class="alert-link">กรอกข้อมูลรายวิชา</a></div>
                     <?php else: ?>
                         <form method="post" enctype="multipart/form-data" novalidate
-                              data-confirm="ยืนยันส่งไฟล์ฉบับที่ <?= (int)$sub['current_version'] + 1 ?>? สถานะจะกลับเป็น &quot;รอตรวจ&quot;">
+                              data-confirm="ยืนยันส่งไฟล์ฉบับที่ <?= (int)$sub['current_version'] + 1 ?> ในหมวด &quot;<?= e(lesson_doc_label($sub['doc_type'])) ?>&quot;? สถานะจะกลับเป็น &quot;รอตรวจ&quot;">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="resubmit">
                             <input type="hidden" name="id" value="<?= (int)$sub['id'] ?>">
+                            <div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle me-1"></i>เอกสารนี้อยู่ในหมวด <strong><?= e(lesson_doc_label($sub['doc_type'])) ?></strong> กรุณาแนบไฟล์ให้ตรงหมวด</div>
                             <div class="mb-3">
                                 <label class="form-label" for="file">ไฟล์ฉบับใหม่ *</label>
                                 <input type="file" class="form-control<?= $invalid('file') ?>" name="file" id="file" accept="<?= e($accept) ?>" required>
@@ -292,15 +313,24 @@ require APP_ROOT . '/includes/header.php';
                             <?php endforeach; ?>
                         </select><?= $err('doc_type') ?>
                     </div>
+                    <div class="col-12">
+                        <div class="alert alert-warning small py-2 mb-0" id="docTypeNotice"><i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>ตรวจหมวดเอกสารให้ตรงกับไฟล์ก่อนส่ง</strong> หากส่งผิดหมวด เอกสารอาจถูกย้ายหรือลบ และต้องส่งใหม่
+                            <span class="d-block mt-1" id="docTypeNoticeNow">กรุณาเลือกประเภทเอกสาร</span>
+                        </div>
+                    </div>
                     <div class="col-md-9">
                         <label class="form-label" for="teaching_subject_id">รายวิชา *</label>
                         <select class="form-select<?= $invalid('teaching_subject_id') ?>" name="teaching_subject_id" id="teaching_subject_id">
                             <option value="" data-ay="">-- เลือกรายวิชาที่สอน --</option>
                             <?php foreach ($mySubjects as $ts): ?>
                                 <option value="<?= (int)$ts['id'] ?>" data-ay="<?= (int)$ts['academic_year_id'] ?>"
+                                    data-info-missing="<?= teaching_info_ready() && !teaching_info_complete($ts) ? 1 : 0 ?>"
                                     <?= (int)post('teaching_subject_id') === (int)$ts['id'] ? 'selected' : '' ?>><?= e($ts['subject_code'] . ' ' . $ts['subject_name'] . ' (' . $ts['level'] . ')') ?></option>
                             <?php endforeach; ?>
                         </select><?= $err('teaching_subject_id') ?>
+                        <div class="alert alert-warning small py-2 mt-2 mb-0 d-none" id="planInfoHint"><i class="bi bi-exclamation-triangle me-1"></i>รายวิชานี้ยังกรอกข้อมูลไม่ครบ จึงยังส่งแผนการจัดการเรียนรู้ไม่ได้
+                            · <a href="#" class="alert-link" id="planInfoLink">กรอกข้อมูลรายวิชา</a></div>
                         <div class="form-text" id="noSubjectHint">ไม่พบวิชาที่ต้องการ? เพิ่มที่ <a href="<?= e(url('teacher/teaching_subjects.php')) ?>">รายวิชาที่สอน</a> ก่อน</div>
                     </div>
                     <div class="col-md-3">
@@ -375,5 +405,27 @@ $pageScripts = '(function () {
     }
     r.addEventListener("change", sync);
     sync();
+    // แผนการจัดการเรียนรู้: เตือนทันทีถ้ารายวิชายังกรอกข้อมูลไม่ครบ (เซิร์ฟเวอร์ตรวจซ้ำตอนส่ง) จะได้ไม่ต้องแนบไฟล์ใหม่
+    var d = document.getElementById("doc_type"), hint = document.getElementById("planInfoHint"), link = document.getElementById("planInfoLink");
+    // เตือนหมวดเอกสาร: แสดงหมวดที่เลือกอยู่ และระบุหมวดกับวิชาในหน้าต่างยืนยันก่อนส่ง
+    var now = document.getElementById("docTypeNoticeNow"), form = d.form;
+    function docNotice() {
+        var label = d.value ? d.options[d.selectedIndex].text : "", o = s.options[s.selectedIndex], subject = o && o.value ? o.text : "";
+        now.textContent = label ? "ท่านกำลังส่งในหมวด: " + label : "กรุณาเลือกประเภทเอกสาร";
+        now.classList.toggle("fw-semibold", !!label);
+        form.setAttribute("data-confirm", label
+            ? "ยืนยันส่งในหมวด \"" + label + "\"" + (subject ? " วิชา " + subject : "") + " ไฟล์ที่แนบตรงกับหมวดนี้ใช่หรือไม่?"
+            : "ตรวจสอบข้อมูลและไฟล์ถูกต้องแล้ว ต้องการส่งงานใช่หรือไม่?");
+    }
+    [r, s, d].forEach(function (el) { el.addEventListener("change", docNotice); });
+    docNotice();
+    var editBase = ' . json_encode(url('teacher/teaching_subjects.php?edit=')) . ';
+    function infoHint() {
+        var o = s.options[s.selectedIndex], show = d.value === "plan" && !!o && o.dataset.infoMissing === "1";
+        hint.classList.toggle("d-none", !show);
+        if (show) { link.href = editBase + o.value; }
+    }
+    [r, s, d].forEach(function (el) { el.addEventListener("change", infoHint); });
+    infoHint();
 })();';
 require APP_ROOT . '/includes/footer.php';

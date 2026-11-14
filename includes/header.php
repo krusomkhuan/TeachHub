@@ -29,6 +29,7 @@ visit_track(); // ตัวนับผู้เข้าชม (1 ครั้�
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
     <title><?= e($pageTitle) ?> | <?= e(system_name()) ?></title>
+    <?php require __DIR__ . '/partials/theme_init.php'; ?>
     <link rel="icon" href="<?= e(asset('img/logo.svg')) ?>" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -60,6 +61,7 @@ visit_track(); // ตัวนับผู้เข้าชม (1 ครั้�
                 <span class="text-muted small"><?= e(college_name()) ?></span>
             </div>
             <div class="ms-auto d-flex align-items-center gap-3">
+                <?php $themeToggleClass = 'btn btn-link text-dark p-1 fs-5 lh-1'; require __DIR__ . '/partials/theme_toggle.php'; ?>
                 <span class="badge rounded-pill text-bg-light border d-none d-sm-inline">
                     <i class="bi bi-calendar3 me-1"></i> ภาคเรียน <?= e(academic_label($headerAy)) ?>
                 </span>

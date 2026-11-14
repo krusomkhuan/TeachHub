@@ -246,11 +246,11 @@ function designated_reviewers(string $type): array
     );
 }
 
-/** หัวหน้าแผนกตรวจโครงการสอนและแผนการจัดการเรียนรู้ของตนเองได้ */
+/** หัวหน้าแผนกตรวจโครงการสอน/แผนการจัดการเรียนรู้ และวิจัยในชั้นเรียนของตนเองได้ (ไม่รวม PA) */
 function can_review_own_submission(array $user, string $type): bool
 {
     return $user['role'] === 'supervisor'
-        && $type === 'lesson_plan'
+        && in_array($type, ['lesson_plan', 'research'], true)
         && (int)$user['department_id'] > 0;
 }
 
@@ -258,7 +258,7 @@ function can_review_own_submission(array $user, string $type): bool
  * ผู้ใช้ตรวจงานนี้ได้หรือไม่
  * - admin ตรวจได้ทุกงาน
  * - ผู้ตรวจตามตำแหน่ง ตรวจงานประเภทนั้นได้ทุกแผนก (ยกเว้นงานของตนเอง)
- * - supervisor ตรวจได้เฉพาะครูในแผนกตนเอง รวมงานของตนเองเฉพาะโครงการสอน/แผนฯ
+ * - supervisor ตรวจได้เฉพาะครูในแผนกตนเอง รวมงานของตนเองเฉพาะโครงการสอน/แผนฯ และวิจัยในชั้นเรียน
  */
 function can_review_submission(array $user, array $sub): bool
 {

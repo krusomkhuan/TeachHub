@@ -16,6 +16,7 @@ $isCurriculumStaff = is_curriculum_staff($user);
 // ---------- ตัวกรอง ----------
 $types = $isCurriculumStaff ? ['lesson_plan', 'research', 'supervision', 'student_eval'] : ['lesson_plan', 'pa', 'research', 'supervision', 'student_eval'];
 $type = in_array(get('type'), $types, true) ? get('type') : 'lesson_plan';
+$showSubmissionReviewCounts = $type !== 'lesson_plan' || $isSupervisor;
 // รายงานนิเทศ 2 รูปแบบใช้หน้าตาเดียวกัน ต่างกันที่ข้อความและแหล่งข้อมูล
 $isEval = in_array($type, ['supervision', 'student_eval'], true);
 $L = $type === 'student_eval'
@@ -103,10 +104,23 @@ if (get('export') === 'csv') {
         }, $rows);
     } else {
         $header = ['ลำดับ', 'ชื่อ-สกุล', 'แผนกวิชา', 'จำนวนที่ส่ง', 'ผ่าน', 'รอตรวจ', 'ให้แก้ไข', 'ส่งช้า', 'ส่งล่าสุด', 'สถานะ'];
-        $data = array_map(function ($r) use (&$i) {
-            return [++$i, $r['teacher_name'], $r['department_name'], $r['sent'], $r['approved'], $r['pending'], $r['revision'],
+        if ($type === 'lesson_plan') {
+            array_splice($header, 3, 0, ['จำนวนโครงการสอน', 'จำนวนแผนการจัดการเรียนรู้']);
+        }
+        if (!$showSubmissionReviewCounts) {
+            array_splice($header, 5, 4);
+        }
+        $data = array_map(function ($r) use (&$i, $type, $showSubmissionReviewCounts) {
+            $row = [++$i, $r['teacher_name'], $r['department_name'], $r['sent'], $r['approved'], $r['pending'], $r['revision'],
                 $r['late'], $r['last_at'] ? thai_datetime($r['last_at']) : '', status_labels()[$r['person_status']]
                 . ((int)$r['late'] > 0 ? ' (ส่งช้า)' : '')];
+            if ($type === 'lesson_plan') {
+                array_splice($row, 3, 0, [(int)$r['outline_count'], (int)$r['plan_count']]);
+            }
+            if (!$showSubmissionReviewCounts) {
+                array_splice($row, 5, 4);
+            }
+            return $row;
         }, $rows);
     }
     $data[] = [];
@@ -344,17 +358,23 @@ require APP_ROOT . '/includes/header.php';
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-hover datatable" data-order="[]" data-page-length="100">
-                    <thead><tr><th>#</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>ส่ง</th><th>ผ่าน</th><th>รอตรวจ</th><th>แก้ไข</th><th>ส่งล่าสุด</th><th>สถานะ</th></tr></thead>
+                    <thead><tr><th>#</th><th>ชื่อ-สกุล</th><th>แผนก</th><?php if ($type === 'lesson_plan'): ?><th>โครงการสอน</th><th>แผนการจัดการเรียนรู้</th><?php endif; ?><?php if ($showSubmissionReviewCounts): ?><th><?= $type === 'lesson_plan' ? 'ส่งรวม' : 'ส่ง' ?></th><th>ผ่าน</th><th>รอตรวจ</th><th>แก้ไข</th><?php endif; ?><th>ส่งล่าสุด</th><th>สถานะ</th></tr></thead>
                     <tbody>
                     <?php foreach ($rows as $i => $r): ?>
                         <tr>
                             <td><?= $i + 1 ?></td>
                             <td><?= e($r['teacher_name']) ?></td>
                             <td class="small"><?= e(preg_replace('/^แผนกวิชา/u', '', $r['department_name'])) ?></td>
+                            <?php if ($type === 'lesson_plan'): ?>
+                                <td><?= (int)$r['outline_count'] ?></td>
+                                <td><?= (int)$r['plan_count'] ?></td>
+                            <?php endif; ?>
+                            <?php if ($showSubmissionReviewCounts): ?>
                             <td><?= (int)$r['sent'] ?></td>
                             <td><?= (int)$r['approved'] ?></td>
                             <td><?= (int)$r['pending'] ?></td>
                             <td><?= (int)$r['revision'] ?></td>
+                            <?php endif; ?>
                             <td class="small" data-order="<?= e((string)$r['last_at']) ?>"><?= e(thai_datetime($r['last_at'])) ?></td>
                             <td data-order="<?= e($r['person_status']) ?>"><?= status_badge($r['person_status'], (int)$r['late'] > 0) ?></td>
                         </tr>

@@ -15,7 +15,7 @@ define('APP_DEBUG', PHP_SAPI === 'cli' || (
 ));
 
 define('APP_NAME', 'TeachHub PT');
-define('APP_VERSION', '1.21.0');
+define('APP_VERSION', '1.23.0');
 define('APP_DEVELOPER', 'ครูสมควร สากำ');
 
 // ---------------------------------------------------------------

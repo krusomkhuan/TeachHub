@@ -27,6 +27,7 @@ desktop.ini
 config/db.local.php
 config/db1.php
 database/boonta_teachhub.sql
+database/pticecac_teachhub.sql
 
 # token ของ Google Drive (v1.18) — สร้างโดยระบบเมื่อเชื่อมต่อ ห้ามนำขึ้น Git
 config/drive_token.php

@@ -7,6 +7,7 @@
 :root {
     --th-primary: #1b2a4e;
     --th-accent: #f47b20;
+    --th-ink: var(--th-primary);   /* สีตัวอักษรหัวข้อ/ลิงก์ (โหมดกลางคืนใช้สีอ่อนแทนสีกรมท่า) */
     --th-bg: #f4f6fb;
     --th-text: #1f2937;
     --th-muted: #6b7280;
@@ -20,13 +21,13 @@ html, body {
     background: var(--th-bg);
 }
 
-a { color: var(--th-primary); }
+a { color: var(--th-ink); }
 a:hover { color: var(--th-accent); }
 
 /* ---------- ปุ่มตามธีม ---------- */
 .btn-primary {
     --bs-btn-bg: var(--th-primary);
-    --bs-btn-border-color: var(--th-primary);
+    --bs-btn-border-color: var(--th-ink);
     --bs-btn-hover-bg: #12203d;
     --bs-btn-hover-border-color: #12203d;
     --bs-btn-active-bg: #0e1930;
@@ -42,7 +43,7 @@ a:hover { color: var(--th-accent); }
     border-color: #d9650f;
     color: #fff;
 }
-.text-primary-th { color: var(--th-primary) !important; }
+.text-primary-th { color: var(--th-ink) !important; }
 .text-accent { color: var(--th-accent) !important; }
 .bg-primary-th { background: var(--th-primary) !important; color: #fff; }
 .bg-accent { background: var(--th-accent) !important; color: #fff; }
@@ -162,7 +163,7 @@ a:hover { color: var(--th-accent); }
 .auth-card-wide { max-width: 760px; }
 .auth-title {
     font-weight: 700;
-    color: var(--th-primary);
+    color: var(--th-ink);
     margin-bottom: .25rem;
 }
 .auth-subtitle { color: var(--th-muted); margin-bottom: 1.5rem; }
@@ -283,7 +284,7 @@ a:hover { color: var(--th-accent); }
 .avatar-md { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
 .avatar-lg { width: 130px; height: 130px; border-radius: 50%; object-fit: cover; border: 4px solid #fff; box-shadow: var(--th-shadow); }
 
-.page-title { font-size: 1.5rem; font-weight: 700; color: var(--th-primary); margin: 0; }
+.page-title { font-size: 1.5rem; font-weight: 700; color: var(--th-ink); margin: 0; }
 .breadcrumb { --bs-breadcrumb-divider: '›'; }
 
 /* ---------- การ์ด ---------- */
@@ -296,7 +297,7 @@ a:hover { color: var(--th-accent); }
     background: #fff;
     border-bottom: 1px solid #eef1f7;
     font-weight: 600;
-    color: var(--th-primary);
+    color: var(--th-ink);
     border-radius: var(--th-radius) var(--th-radius) 0 0 !important;
     padding: .9rem 1.25rem;
 }
@@ -325,10 +326,10 @@ a.stat-card:hover { transform: translateY(-3px); color: inherit; }
     font-size: 1.6rem;
     flex-shrink: 0;
 }
-.stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--th-primary); }
+.stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--th-ink); }
 .stat-label { color: var(--th-muted); font-size: .9rem; }
 .stat-sub { font-size: .8rem; color: var(--th-muted); }
-.ic-navy   { background: rgba(27, 42, 78, .1);  color: var(--th-primary); }
+.ic-navy   { background: rgba(27, 42, 78, .1);  color: var(--th-ink); }
 .ic-orange { background: rgba(244, 123, 32, .14); color: var(--th-accent); }
 .ic-green  { background: rgba(25, 135, 84, .12);  color: #198754; }
 .ic-yellow { background: rgba(255, 193, 7, .18);  color: #b58500; }
@@ -357,7 +358,7 @@ a.stat-card:hover { transform: translateY(-3px); color: inherit; }
 .chart-box-sm { position: relative; height: 240px; }
 
 .table > :not(caption) > * > * { vertical-align: middle; }
-.table thead th { background: #f6f8fc; color: var(--th-primary); font-weight: 600; white-space: nowrap; }
+.table thead th { background: #f6f8fc; color: var(--th-ink); font-weight: 600; white-space: nowrap; }
 .empty-state { text-align: center; padding: 2rem 1rem; color: var(--th-muted); }
 .empty-state i { font-size: 2.5rem; display: block; margin-bottom: .5rem; opacity: .5; }
 
@@ -414,7 +415,7 @@ a.stat-card:hover { transform: translateY(-3px); color: inherit; }
 }
 .section-title {
     font-weight: 700;
-    color: var(--th-primary);
+    color: var(--th-ink);
     position: relative;
     padding-left: .9rem;
     margin-bottom: 1.25rem;
@@ -430,7 +431,7 @@ a.stat-card:hover { transform: translateY(-3px); color: inherit; }
 .news-item { padding: 1rem 1.25rem; border-bottom: 1px solid #f0f2f7; display: block; color: inherit; text-decoration: none; }
 .news-item:last-child { border-bottom: 0; }
 .news-item:hover { background: #fafbfe; color: inherit; }
-.news-title { font-weight: 600; color: var(--th-primary); }
+.news-title { font-weight: 600; color: var(--th-ink); }
 .round-card { border-top: 4px solid var(--th-accent); }
 .round-card.urgent { border-top-color: #dc3545; }
 .round-card.upcoming { border-top-color: #0dcaf0; }
@@ -491,3 +492,136 @@ a.stat-card:hover { transform: translateY(-3px); color: inherit; }
 .online-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .25); flex-shrink: 0; }
 .cheer-card { border-left: 4px solid var(--th-accent); }
 .cheer-card .cheer-icon { font-size: 2rem; color: var(--th-accent); }
+
+/* =====================================================================
+   โหมดกลางคืน: <html data-bs-theme="dark"> (ปุ่มสลับอยู่ใน partials/theme_toggle.php)
+   หน้าสำหรับพิมพ์ไม่ได้โหลดโหมดนี้ และการสั่งพิมพ์จะสลับเป็นโหมดสว่างชั่วคราว (app.js)
+   ===================================================================== */
+.theme-toggle .theme-icon-sun { display: none; }
+[data-bs-theme="dark"] .theme-toggle .theme-icon-moon { display: none; }
+[data-bs-theme="dark"] .theme-toggle .theme-icon-sun { display: inline-block; }
+.auth-theme-toggle { z-index: 1030; }
+
+[data-bs-theme="dark"] {
+    --th-ink: #c9d6f0;
+    --th-bg: #111827;
+    --th-text: #e5e7eb;
+    --th-muted: #a3adbd;
+    --th-surface: #1c2536;
+    --th-surface-2: #253045;
+    --th-line: #33405a;
+    --th-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+    --bs-body-bg: #111827;
+    --bs-body-color: #e5e7eb;
+    --bs-border-color: #33405a;
+}
+
+/* พื้นผิวหลัก */
+[data-bs-theme="dark"] .card { --bs-card-bg: var(--th-surface); --bs-card-cap-bg: var(--th-surface); }
+[data-bs-theme="dark"] .card-header,
+[data-bs-theme="dark"] .app-topbar,
+[data-bs-theme="dark"] .app-footer,
+[data-bs-theme="dark"] .stat-card,
+[data-bs-theme="dark"] .auth-card { background: var(--th-surface); }
+[data-bs-theme="dark"] .card-header,
+[data-bs-theme="dark"] .app-topbar,
+[data-bs-theme="dark"] .app-footer,
+[data-bs-theme="dark"] .deadline-item,
+[data-bs-theme="dark"] .news-item { border-color: var(--th-line); }
+[data-bs-theme="dark"] .avatar-sm { border-color: var(--th-line); }
+[data-bs-theme="dark"] .avatar-lg { border-color: var(--th-surface); }
+[data-bs-theme="dark"] .dropdown-menu { --bs-dropdown-bg: var(--th-surface-2); }
+
+/* คลาสสีอ่อนของ Bootstrap ที่กำหนดตายตัว */
+[data-bs-theme="dark"] .bg-light,
+[data-bs-theme="dark"] .text-bg-light { background-color: var(--th-surface-2) !important; color: var(--th-text) !important; }
+[data-bs-theme="dark"] .bg-white { background-color: var(--th-surface) !important; }
+[data-bs-theme="dark"] .text-dark:not(.bg-warning):not(.bg-info) { color: var(--th-text) !important; }
+[data-bs-theme="dark"] .input-group-text { background: var(--th-surface-2); }
+[data-bs-theme="dark"] .list-group { --bs-list-group-bg: transparent; }
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select { background-color: #151d2c; }
+[data-bs-theme="dark"] .form-control:disabled,
+[data-bs-theme="dark"] .form-select:disabled { background-color: var(--th-surface-2); }
+
+/* ตาราง */
+[data-bs-theme="dark"] .table { --bs-table-bg: transparent; --bs-table-color: var(--th-text); --bs-table-border-color: var(--th-line); }
+[data-bs-theme="dark"] .table thead th { background: var(--th-surface-2); }
+[data-bs-theme="dark"] .table-light { --bs-table-bg: var(--th-surface-2); --bs-table-color: var(--th-text); --bs-table-border-color: var(--th-line); }
+
+/* ปุ่มและไอคอนที่ใช้สีกรมท่า */
+[data-bs-theme="dark"] .btn-primary {
+    --bs-btn-bg: #3a5a9b;
+    --bs-btn-border-color: #3a5a9b;
+    --bs-btn-hover-bg: #4a6cb3;
+    --bs-btn-hover-border-color: #4a6cb3;
+    --bs-btn-active-bg: #2f4b84;
+    --bs-btn-active-border-color: #2f4b84;
+}
+[data-bs-theme="dark"] .ic-navy { background: rgba(201, 214, 240, .14); }
+[data-bs-theme="dark"] .ic-yellow { color: #ffc107; }
+[data-bs-theme="dark"] .ic-blue { color: #6ea8fe; }
+[data-bs-theme="dark"] .ic-purple { color: #b794f4; }
+[data-bs-theme="dark"] .ic-green { color: #4ade80; }
+[data-bs-theme="dark"] .ic-red { color: #f87171; }
+
+/* รายการและปฏิทิน */
+[data-bs-theme="dark"] .deadline-item.urgent { background: rgba(220, 53, 69, .14); }
+[data-bs-theme="dark"] .news-item:hover { background: var(--th-surface-2); }
+[data-bs-theme="dark"] .cal-table td.other-month { background: #161e2d; color: #6b7688; }
+[data-bs-theme="dark"] .cal-table td.today { background: rgba(244, 123, 32, .14); }
+[data-bs-theme="dark"] .pw-strength { background: var(--th-line); }
+
+/* แบบประเมินแผนการจัดการเรียนรู้ (review/plan_evaluations.php) */
+[data-bs-theme="dark"] .pe-table thead th { background: var(--th-surface-2); }
+[data-bs-theme="dark"] .pe-row td { background: var(--th-surface); }
+[data-bs-theme="dark"] .pe-row.pe-alt td { background: #212b3f; }
+[data-bs-theme="dark"] .pe-row.pe-done td:not(.pe-cell) { background: rgba(25, 135, 84, .16); }
+[data-bs-theme="dark"] .pe-row.pe-alt.pe-done td:not(.pe-cell) { background: rgba(25, 135, 84, .22); }
+[data-bs-theme="dark"] .pe-row:hover td:not(.pe-locked) { background: rgba(244, 123, 32, .16) !important; }
+[data-bs-theme="dark"] .pe-row.pe-done .pe-no-cell { color: #4ade80; }
+[data-bs-theme="dark"] .pe-row.pe-missing td:not(.pe-cell) { background: rgba(220, 53, 69, .18); }
+[data-bs-theme="dark"] .pe-locked { background: repeating-linear-gradient(45deg, #2a3448, #2a3448 6px, #232c3e 6px, #232c3e 12px) !important; }
+[data-bs-theme="dark"] .pe-opt span { background: #151d2c; border-color: var(--th-line); color: #a3adbd; }
+[data-bs-theme="dark"] .pe-h-yes, [data-bs-theme="dark"] .pe-h-s5, [data-bs-theme="dark"] .pe-h-s4 { color: #4ade80 !important; }
+[data-bs-theme="dark"] .pe-h-no, [data-bs-theme="dark"] .pe-h-s1 { color: #f87171 !important; }
+[data-bs-theme="dark"] .pe-h-na { color: #a3adbd !important; }
+[data-bs-theme="dark"] .pe-h-s3 { color: #ffc107 !important; }
+[data-bs-theme="dark"] .pe-h-s2 { color: #fb923c !important; }
+[data-bs-theme="dark"] .pe-c-yes:hover span, [data-bs-theme="dark"] .pe-s5:hover span, [data-bs-theme="dark"] .pe-s4:hover span { color: #4ade80; }
+[data-bs-theme="dark"] .pe-c-no:hover span, [data-bs-theme="dark"] .pe-s1:hover span { color: #f87171; }
+[data-bs-theme="dark"] .pe-s3:hover span { color: #ffc107; }
+[data-bs-theme="dark"] .pe-s2:hover span { color: #fb923c; }
+[data-bs-theme="dark"] .pe-opt input:checked + span { color: #fff; }
+[data-bs-theme="dark"] .pe-c-yes input:checked + span, [data-bs-theme="dark"] .pe-c-yes:hover input:checked + span { background: #198754; border-color: #198754; color: #fff; }
+[data-bs-theme="dark"] .pe-c-no input:checked + span, [data-bs-theme="dark"] .pe-c-no:hover input:checked + span { background: #dc3545; border-color: #dc3545; color: #fff; }
+[data-bs-theme="dark"] .pe-c-na input:checked + span, [data-bs-theme="dark"] .pe-c-na:hover input:checked + span { background: #6c757d; border-color: #6c757d; color: #fff; }
+[data-bs-theme="dark"] .pe-s5 input:checked + span, [data-bs-theme="dark"] .pe-s5:hover input:checked + span { background: #146c43; border-color: #146c43; color: #fff; }
+[data-bs-theme="dark"] .pe-s4 input:checked + span, [data-bs-theme="dark"] .pe-s4:hover input:checked + span { background: #3fa65f; border-color: #3fa65f; color: #fff; }
+[data-bs-theme="dark"] .pe-s3 input:checked + span, [data-bs-theme="dark"] .pe-s3:hover input:checked + span { background: #f2b705; border-color: #f2b705; color: #212529; }
+[data-bs-theme="dark"] .pe-s2 input:checked + span, [data-bs-theme="dark"] .pe-s2:hover input:checked + span { background: #fd7e14; border-color: #fd7e14; color: #fff; }
+[data-bs-theme="dark"] .pe-s1 input:checked + span, [data-bs-theme="dark"] .pe-s1:hover input:checked + span { background: #dc3545; border-color: #dc3545; color: #fff; }
+
+/* หน้าต่างแจ้งเตือน SweetAlert2 */
+[data-bs-theme="dark"] .swal2-popup { background: var(--th-surface); color: var(--th-text); }
+[data-bs-theme="dark"] .swal2-title,
+[data-bs-theme="dark"] .swal2-html-container { color: var(--th-text); }
+
+/* ===== หน้าจอรอ "กำลังเข้าสู่ระบบ" — ฟันเฟือง 3 ตัวหมุน ===== */
+.login-gears-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+    background: rgba(255, 255, 255, .82);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+[data-bs-theme="dark"] .login-gears-overlay { background: rgba(17, 24, 39, .85); }
+.login-gears-overlay.show { display: flex; animation: gearsFadeIn .2s ease-out; }
+.login-gears { position: relative; width: 190px; height: 130px; }
+.login-gears svg { position: absolute; display: block; }
+.login-gears .gear-blue { width: 100px; height: 100px; left: 4px;   top: 26px; color: #1f4e8c; animation: gearSpin 3s linear infinite; }
+.login-gears .gear-gold { width: 70px;  height: 70px;  left: 89px;  top: 0;    color: #e6a325; animation: gearSpin 2.1s linear infinite reverse; animation-delay: -.12s; }
+.login-gears .gear-gray { width: 50px;  height: 50px;  left: 138px; top: 40px; color: #7f9cbf; animation: gearSpin 1.5s linear infinite; }
+[data-bs-theme="dark"] .login-gears .gear-blue { color: #4f86d1; }
+.login-gears-text { font-weight: 600; font-size: 1.1rem; color: var(--bs-body-color); }
+@keyframes gearSpin { to { transform: rotate(360deg); } }
+@keyframes gearsFadeIn { from { opacity: 0; } to { opacity: 1; } }

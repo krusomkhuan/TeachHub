@@ -84,6 +84,10 @@ require APP_ROOT . '/includes/auth_header.php';
                 <?php else: ?>
                     หากจำรหัสผ่านไม่ได้ กด <a href="<?= e(url('auth/forgot_password.php')) ?>" class="alert-link">ลืมรหัสผ่าน</a> เพื่อส่งคำขอให้ผู้ดูแลระบบรีเซ็ตรหัสผ่าน
                 <?php endif; ?>
+                <?php // แสดงเหมือนกันทุกบัญชี เพื่อไม่ให้เดาได้ว่าบัญชีใดมีอยู่หรือสมัครด้วย Google ?>
+                <?php if (google_enabled()): ?>
+                    <div class="mt-1">หากเคยสมัครด้วย Google ให้กดปุ่ม <strong>เข้าสู่ระบบด้วย Google</strong> ด้านล่าง</div>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>
@@ -135,5 +139,33 @@ require APP_ROOT . '/includes/auth_header.php';
     </p>
 <?php endif; ?>
 <p class="text-center mt-2 mb-0"><a href="<?= e(url('public/index.php')) ?>" class="small text-muted"><i class="bi bi-house"></i> กลับหน้าแรก</a></p>
+
+<div class="login-gears-overlay" id="loginGears" role="status" aria-live="polite">
+    <div class="login-gears">
+        <svg class="gear-blue" viewBox="-50 -50 100 100" aria-hidden="true"><circle r="37" fill="none" stroke="currentColor" stroke-width="16" stroke-dasharray="9.687"/><path fill="currentColor" fill-rule="evenodd" d="M0-33a33 33 0 1 1 0 66a33 33 0 1 1 0-66zM0-13a13 13 0 1 0 0 26a13 13 0 1 0 0-26z"/></svg>
+        <svg class="gear-gold" viewBox="-50 -50 100 100" aria-hidden="true"><circle r="37" fill="none" stroke="currentColor" stroke-width="16" stroke-dasharray="11.624"/><path fill="currentColor" fill-rule="evenodd" d="M0-33a33 33 0 1 1 0 66a33 33 0 1 1 0-66zM0-13a13 13 0 1 0 0 26a13 13 0 1 0 0-26z"/></svg>
+        <svg class="gear-gray" viewBox="-50 -50 100 100" aria-hidden="true"><circle r="37" fill="none" stroke="currentColor" stroke-width="16" stroke-dasharray="14.530"/><path fill="currentColor" fill-rule="evenodd" d="M0-33a33 33 0 1 1 0 66a33 33 0 1 1 0-66zM0-13a13 13 0 1 0 0 26a13 13 0 1 0 0-26z"/></svg>
+    </div>
+    <div class="login-gears-text">กำลังเข้าสู่ระบบ...</div>
+</div>
+<script>
+(function () {
+    var overlay = document.getElementById('loginGears');
+    var form = document.querySelector('form[action$="auth/login.php"]');
+    if (!overlay || !form) return;
+    var btn = form.querySelector('button[type="submit"]');
+    var btnHtml = btn ? btn.innerHTML : '';
+    form.addEventListener('submit', function (ev) {
+        if (ev.defaultPrevented) return;
+        overlay.classList.add('show');
+    });
+    // กลับมาหน้านี้ด้วยปุ่ม Back ให้ซ่อนหน้าจอรอ และเปิดปุ่มเข้าสู่ระบบอีกครั้ง
+    window.addEventListener('pageshow', function (ev) {
+        if (!ev.persisted) return;
+        overlay.classList.remove('show');
+        if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
+    });
+})();
+</script>
 
 <?php require APP_ROOT . '/includes/auth_footer.php'; ?>

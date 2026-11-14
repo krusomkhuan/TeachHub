@@ -48,7 +48,7 @@ $menus = [
             ['รายงานการนิเทศ (เสนอ/พิจารณา)', 'reports/supervision_reports.php', 'bi-file-earmark-check'],
         ],
         'กำหนดการ & รายงาน' => [
-            ['รอบการส่งงาน', 'admin/rounds.php', 'bi-hourglass-split'],
+            ['จัดทำปฏิทินกำหนดการ (รอบส่งงาน)', 'admin/rounds.php', 'bi-calendar-plus'],
             ['รายงานผล', 'reports/index.php', 'bi-bar-chart-line'],
             ['เกณฑ์การส่งรายภาคเรียน', 'reports/teaching_compliance.php', 'bi-clipboard2-check'],
             ['รายงานผลประเมินแผนฯ', 'reports/plan_eval_summary.php', 'bi-graph-up'],

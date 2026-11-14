@@ -35,6 +35,24 @@ $loadPlan = function (int $id) use ($user): array {
 // =====================================================================
 if (is_post()) {
     csrf_verify();
+    // ย้ายโครงการสอนกลับหมวดแผน: เอกสารยังเป็นโครงการสอน จึงไม่ผ่าน $loadPlan ซึ่งรับเฉพาะแผน
+    if (post('action') === 'move_to_plan') {
+        $doc = plan_eval_fetch_plan((int)post('plan_id'));
+        if (!$doc || $doc['doc_type'] !== 'outline' || !can_move_lesson_doc($user, $doc)) {
+            log_activity('access_denied', 'พยายามย้ายเอกสาร #' . (int)post('plan_id') . ' ไปหมวดแผนการจัดการเรียนรู้นอกขอบเขต');
+            abort_page(403, 'ไม่มีสิทธิ์ย้ายเอกสารนี้', 'หัวหน้าแผนกย้ายได้เฉพาะเอกสารของครูในแผนกตนเอง');
+        }
+        $moveReason = plan_move_plan_block_reason((int)$doc['id']);
+        if ($moveReason !== '') {
+            flash('error', $moveReason);
+            redirect($self);
+        }
+        plan_move_to_plan((int)$doc['id']);
+        log_activity('plan_move_to_plan', 'ย้ายเอกสาร #' . (int)$doc['id'] . ' ' . $doc['subject_code'] . ' ของ ' . $doc['teacher_name']
+            . ' จากโครงการสอนไปแผนการจัดการเรียนรู้');
+        flash('success', 'ย้าย ' . $doc['subject_code'] . ' ไปหมวดแผนการจัดการเรียนรู้แล้ว สถานะกลับเป็น "รอตรวจ"');
+        redirect($self);
+    }
     $plan = $loadPlan((int)post('plan_id'));
     if (!can_evaluate_plan($user, $plan)) {
         log_activity('access_denied', 'พยายามประเมินแผนการจัดการเรียนรู้ #' . (int)$plan['id'] . ' นอกขอบเขต');
@@ -48,6 +66,19 @@ if (is_post()) {
         db_exec('DELETE FROM plan_evaluations WHERE id = ?', 'i', [(int)$plan['eval_id']]);
         log_activity('plan_eval_delete', 'ลบผลประเมินแผนฯ ' . $plan['subject_code'] . ' ของ ' . $plan['teacher_name']);
         flash('success', 'ลบผลการประเมินแล้ว');
+        redirect($self);
+    }
+
+    if (post('action') === 'move_to_outline') {
+        $moveReason = plan_move_outline_block_reason((int)$plan['id']);
+        if ($moveReason !== '') {
+            flash('error', $moveReason);
+            redirect($self . '?evaluate=' . (int)$plan['id']);
+        }
+        plan_move_to_outline((int)$plan['id']);
+        log_activity('plan_move_to_outline', 'ย้ายเอกสาร #' . (int)$plan['id'] . ' ' . $plan['subject_code'] . ' ของ ' . $plan['teacher_name']
+            . ' จากแผนการจัดการเรียนรู้ไปโครงการสอน');
+        flash('success', 'ย้าย ' . $plan['subject_code'] . ' ไปหมวดโครงการสอนแล้ว สถานะกลับเป็น "รอตรวจ"');
         redirect($self);
     }
 
@@ -137,6 +168,9 @@ if (get_int('view') > 0) {
     <div class="d-flex flex-wrap gap-2">
         <a href="<?= e(url($self)) ?>" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> กลับรายการ</a>
         <a href="<?= e(url(review_page($user['role'], 'lesson_plan') . '?id=' . (int)$plan['id'])) ?>" class="btn btn-outline-primary"><i class="bi bi-files me-1"></i> ไฟล์แผนที่ครูส่ง</a>
+        <?php if ($ev && can_evaluate_plan($user, $plan)): ?>
+            <a href="<?= e(url($self . '?evaluate=' . (int)$plan['id'])) ?>" class="btn btn-accent"><i class="bi bi-pencil-square me-1"></i> แก้ไขแบบประเมิน</a>
+        <?php endif; ?>
         <?php if ($ev && $user['role'] === 'admin'): ?>
             <form method="post" class="ms-auto" data-confirm="ลบผลการประเมินแผนนี้? (ลบแล้วกู้คืนไม่ได้)" data-confirm-icon="warning">
                 <?= csrf_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
@@ -162,11 +196,24 @@ if (get_int('evaluate') > 0) {
     $oldItems = $ev ? plan_eval_items((int)$ev['id']) : ['check' => [], 'quality' => []];
     $checkCriteria = plan_eval_criteria_active('check');
     $qualityCriteria = plan_eval_criteria_active('quality');
-    // ค่าเริ่มต้นข้อมูลทั่วไป: ผลเดิม > ผลประเมินครั้งก่อนของครูคนเดียวกัน > ข้อมูลจากแผน/รายวิชา
-    $prev = $ev ?: db_one('SELECT subject_category, major FROM plan_evaluations WHERE teacher_id = ? ORDER BY id DESC LIMIT 1', 'i', [(int)$plan['teacher_id']]);
+    // ค่าเริ่มต้นข้อมูลทั่วไป: ผลเดิม > ข้อมูลที่ครูกรอกในรายวิชาที่สอน > ผลประเมินครั้งก่อนของครูคนเดียวกัน / ตารางรายวิชา
+    $prev = db_one('SELECT subject_category, major FROM plan_evaluations WHERE teacher_id = ? ORDER BY id DESC LIMIT 1', 'i', [(int)$plan['teacher_id']]);
+    $tsInfo = teaching_subject_info((int)$plan['teacher_id'], (int)$plan['ay_id'], (string)$plan['subject_code']);
+    $firstFilled = function (...$values): string {
+        foreach ($values as $v) {
+            if ((string)$v !== '' && (string)$v !== '0') {
+                return (string)$v;
+            }
+        }
+        return '';
+    };
     $defaults = [
-        'program' => $ev['program'] ?? $plan['level'], 'subject_category' => $prev['subject_category'] ?? '', 'major' => $prev['major'] ?? '',
-        'credit' => $ev['credit'] ?? $plan['subject_credit'], 'unit_count' => $ev['unit_count'] ?? '', 'plan_count' => $ev['plan_count'] ?? '',
+        'program' => $ev['program'] ?? $plan['level'],
+        'subject_category' => $firstFilled($ev['subject_category'] ?? '', $tsInfo['subject_category'] ?? '', $prev['subject_category'] ?? ''),
+        'major' => $firstFilled($ev['major'] ?? '', $tsInfo['major'] ?? '', $prev['major'] ?? ''),
+        'credit' => $firstFilled($ev['credit'] ?? '', $tsInfo['credit'] ?? '', $plan['subject_credit']),
+        'unit_count' => $firstFilled($ev['unit_count'] ?? '', $tsInfo['unit_count'] ?? ''),
+        'plan_count' => $firstFilled($ev['plan_count'] ?? '', $tsInfo['plan_count'] ?? ''),
         'has_standard' => (string)($ev['has_standard'] ?? ''), 'strengths' => $ev['strengths'] ?? '', 'improvements' => $ev['improvements'] ?? '',
         'decision' => $ev['decision'] ?? '', 'resubmit_by' => $ev['resubmit_by'] ?? '',
     ];
@@ -192,6 +239,7 @@ if (get_int('evaluate') > 0) {
         <span><i class="bi bi-files me-1"></i>ฉบับที่ <?= (int)$plan['current_version'] ?>
             · <a href="<?= e(url(review_page($user['role'], 'lesson_plan') . '?id=' . (int)$plan['id'])) ?>" target="_blank">รายละเอียดงานที่ส่ง</a></span>
     </div>
+    <?php $movePlanId = (int)$plan['id']; $moveTo = 'outline'; require APP_ROOT . '/includes/partials/plan_move_outline.php'; ?>
     <?php if ($ev): ?><div class="mb-3"><?= plan_eval_status_badge($ev['status']) ?></div><?php endif; ?>
     <?php if ($ev && $ev['acknowledged_at']): ?>
         <div class="alert alert-warning small"><i class="bi bi-exclamation-triangle me-1"></i>ครูรับทราบผลเดิมแล้ว เมื่อบันทึกการแก้ไข ครูจะต้องกดรับทราบผลใหม่อีกครั้ง</div>
@@ -295,6 +343,13 @@ if (get_int('evaluate') > 0) {
                             </div>
                         <?php endforeach; ?>
                     </div>
+                </div>
+                <div class="form-text mt-2">
+                    <?php if ($tsInfo && teaching_info_complete($tsInfo)): ?>
+                        <i class="bi bi-info-circle me-1"></i>ข้อมูลเริ่มต้นมาจาก "รายวิชาที่สอน" ที่ครูกรอกไว้ ตรวจสอบกับเล่มแผนและแก้ไขได้
+                    <?php else: ?>
+                        <i class="bi bi-exclamation-circle me-1"></i>ครูยังกรอกข้อมูลรายวิชานี้ใน "รายวิชาที่สอน" ไม่ครบ กรุณากรอกจากเล่มแผน
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -654,9 +709,15 @@ require APP_ROOT . '/includes/header.php';
                                 <a href="<?= e(url($self . '?evaluate=' . (int)$r['id'])) ?>" class="btn btn-sm btn-outline-warning text-dark"><i class="bi bi-pencil"></i> ประเมินต่อ</a>
                             <?php elseif ($r['eval_id']): ?>
                                 <a href="<?= e(url($self . '?view=' . (int)$r['id'])) ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> ดูผล</a>
+                                <?php if ($canEvaluate): ?>
+                                    <a href="<?= e(url($self . '?evaluate=' . (int)$r['id'])) ?>" class="btn btn-sm btn-outline-secondary" title="แก้ไขแบบประเมิน"><i class="bi bi-pencil"></i> แก้ไข</a>
+                                <?php endif; ?>
                             <?php elseif ($canEvaluate): ?>
                                 <a href="<?= e(url($self . '?evaluate=' . (int)$r['id'])) ?>" class="btn btn-sm btn-accent"><i class="bi bi-clipboard-check"></i> ประเมิน</a>
                             <?php else: ?><span class="small text-muted">แผนของท่าน</span><?php endif; ?>
+                            <?php if (admin_can($user, 'lesson_plans')): ?>
+                                <a href="<?= e(url('admin/lesson_plans.php?id=' . (int)$r['id'])) ?>" class="btn btn-sm btn-outline-danger" title="เปิดรายละเอียดงานเพื่อลบเอกสารที่ส่งผิด"><i class="bi bi-trash"></i> ลบ</a>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

@@ -9,7 +9,7 @@
  *
  * ขอบเขตข้อมูล:
  *   - admin      : ทุกแผนก
- *   - supervisor : เฉพาะครูในแผนกตนเอง รวมงานของตนเองเฉพาะโครงการสอน/แผนฯ
+ *   - supervisor : เฉพาะครูในแผนกตนเอง รวมงานของตนเองเฉพาะโครงการสอน/แผนฯ และวิจัยในชั้นเรียน
  *
  * พารามิเตอร์: ?id= (ตรวจงาน), ?status=, ?round_id=, ?ay=, ?dept= (admin), ?q=
  */
@@ -23,13 +23,41 @@ $self = review_page($user['role'], $type);
 $typeLabel = submission_type_label($type);
 $table = submission_table($type);
 $errors = [];
+// ผู้ดูแลระบบลบโครงการสอน/แผนที่ครูส่งผิดได้ (ลบไฟล์ ประวัติการตรวจ และผลประเมินทั้งหมด กู้คืนไม่ได้)
+$canDeleteDoc = $type === 'lesson_plan' && admin_can($user, 'lesson_plans');
 
 // =====================================================================
-// POST: บันทึกผลการตรวจ
+// POST: ลบเอกสาร / บันทึกผลการตรวจ
 // =====================================================================
 if (is_post()) {
     csrf_verify();
     $sub = submission_fetch($type, (int)post('id'));
+    if (post('action') === 'delete_latest_version') {
+        if (!$sub || !$canDeleteDoc) {
+            abort_page(403, 'ไม่มีสิทธิ์ลบเอกสารนี้', 'ลบเอกสารที่ครูส่งได้เฉพาะผู้ดูแลระบบ');
+        }
+        $versionBlock = lesson_doc_latest_version_block_reason($sub);
+        if ($versionBlock !== '') {
+            flash('error', $versionBlock);
+            redirect($self . '?id=' . (int)$sub['id']);
+        }
+        $newVersion = lesson_doc_delete_latest_version($sub);
+        log_activity('delete_lesson_plan_version', 'ผู้ดูแลระบบลบฉบับที่ ' . (int)$sub['current_version'] . ' ของ' . lesson_doc_label((string)$sub['doc_type'])
+            . ' #' . (int)$sub['id'] . ' ' . $sub['subject_code'] . ' ของ ' . $sub['teacher_name'] . ' (เหลือถึงฉบับที่ ' . $newVersion . ')');
+        flash('success', 'ลบฉบับที่ ' . (int)$sub['current_version'] . ' แล้ว ฉบับปัจจุบันคือฉบับที่ ' . $newVersion);
+        redirect($self . '?id=' . (int)$sub['id']);
+    }
+    if (post('action') === 'delete_submission') {
+        if (!$sub || !$canDeleteDoc) {
+            abort_page(403, 'ไม่มีสิทธิ์ลบเอกสารนี้', 'ลบเอกสารที่ครูส่งได้เฉพาะผู้ดูแลระบบ');
+        }
+        $hadEval = (bool)db_value('SELECT id FROM plan_evaluations WHERE lesson_plan_id = ?', 'i', [(int)$sub['id']]);
+        submission_delete($type, $sub);
+        log_activity('delete_lesson_plan', 'ผู้ดูแลระบบลบ' . lesson_doc_label((string)$sub['doc_type']) . ' #' . (int)$sub['id'] . ' ' . $sub['subject_code']
+            . ' ของ ' . $sub['teacher_name'] . ' (' . (int)$sub['current_version'] . ' ฉบับ' . ($hadEval ? ' พร้อมผลประเมิน' : '') . ')');
+        flash('success', 'ลบ' . lesson_doc_label((string)$sub['doc_type']) . ' ' . $sub['subject_code'] . ' ของ ' . $sub['teacher_name'] . ' แล้ว');
+        redirect($self);
+    }
     if (!$sub || !can_review_submission($user, $sub)) {
         abort_page(403, 'ไม่มีสิทธิ์ตรวจงานนี้');
     }
@@ -129,6 +157,39 @@ if ($viewId > 0) {
                 </div>
             </div>
             <a href="<?= e(url($self)) ?>" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-left me-1"></i> กลับรายการ</a>
+            <?php if ($canDeleteDoc):
+                $docLabel = lesson_doc_label((string)$sub['doc_type']);
+                $delEval = db_value('SELECT status FROM plan_evaluations WHERE lesson_plan_id = ?', 'i', [(int)$sub['id']]);
+                $delRoundOpen = round_can_submit(submission_round($sub));
+                $delVersion = (int)$sub['current_version'];
+                $delVersionBlock = $delVersion > 1 ? lesson_doc_latest_version_block_reason($sub) : null; ?>
+                <div class="card mt-4 border-danger">
+                    <div class="card-header text-danger"><i class="bi bi-trash me-2"></i>ลบเอกสารที่ส่งผิด</div>
+                    <div class="card-body small">
+                        <?php if ($delVersionBlock === ''): ?>
+                            <p class="mb-2">ลบเฉพาะฉบับที่ <?= $delVersion ?> (ล่าสุด) พร้อมผลตรวจของฉบับนี้ ฉบับก่อนหน้าจะกลับเป็นฉบับปัจจุบัน <strong>กู้คืนไม่ได้</strong></p>
+                            <form method="post" class="mb-3" data-confirm="<?= e('ลบเฉพาะฉบับที่ ' . $delVersion . ' ของ ' . $sub['subject_code'] . '? ไฟล์ฉบับนี้จะกู้คืนไม่ได้') ?>" data-confirm-icon="warning">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="delete_latest_version">
+                                <input type="hidden" name="id" value="<?= (int)$sub['id'] ?>">
+                                <button class="btn btn-outline-danger w-100"><i class="bi bi-file-earmark-x me-1"></i> ลบเฉพาะฉบับที่ <?= $delVersion ?></button>
+                            </form>
+                            <hr>
+                        <?php elseif ($delVersionBlock !== null): ?>
+                            <p class="text-muted mb-2"><?= e($delVersionBlock) ?></p>
+                        <?php endif; ?>
+                        <p class="mb-2">ลบ<?= e($docLabel) ?>นี้ทั้งรายการ พร้อมไฟล์ทุกฉบับ (<?= (int)$sub['current_version'] ?> ฉบับ) และประวัติการตรวจ <strong>กู้คืนไม่ได้</strong></p>
+                        <?php if ($delEval): ?><p class="text-danger mb-2"><i class="bi bi-exclamation-triangle me-1"></i>ผลประเมินแผน<?= $delEval === 'final' ? 'ที่ส่งให้ครูแล้ว' : ' (ร่าง)' ?>จะถูกลบไปด้วย</p><?php endif; ?>
+                        <?php if (!$delRoundOpen): ?><p class="text-danger mb-2"><i class="bi bi-exclamation-triangle me-1"></i>รอบการส่งนี้ปิดแล้ว ครูจะส่งใหม่ไม่ได้จนกว่าจะเปิดรอบหรือขยายเวลา</p><?php endif; ?>
+                        <form method="post" data-confirm="<?= e('ลบ' . $docLabel . ' ' . $sub['subject_code'] . ' ของ ' . $sub['teacher_name'] . ' พร้อมไฟล์ทั้งหมด? กู้คืนไม่ได้') ?>" data-confirm-icon="warning">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="delete_submission">
+                            <input type="hidden" name="id" value="<?= (int)$sub['id'] ?>">
+                            <button class="btn btn-outline-danger w-100"><i class="bi bi-trash me-1"></i> ลบ<?= e($docLabel) ?>ทั้งรายการ</button>
+                        </form>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
     <?php

@@ -9,7 +9,7 @@ define('DB_HOST', 'localhost');
 define('DB_PORT', 3306);
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'teachhub_pt');
+define('DB_NAME', 'teachhub');
 
 /**
  * คืนค่าการเชื่อมต่อ mysqli (สร้างครั้งเดียวต่อหนึ่ง request)

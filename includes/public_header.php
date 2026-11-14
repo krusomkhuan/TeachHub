@@ -32,6 +32,7 @@ $navItems = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="<?= e(system_name() . ' — ' . setting('system_fullname') . ' ' . college_name()) ?>">
     <title><?= e($pageTitle) ?> | <?= e(system_name()) ?> <?= e(college_name()) ?></title>
+    <?php require __DIR__ . '/partials/theme_init.php'; ?>
     <link rel="icon" href="<?= e(asset('img/logo.svg')) ?>" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,6 +58,7 @@ $navItems = [
                 <small class="opacity-75" style="font-size:.72rem"><?= e(college_name()) ?></small>
             </span>
         </a>
+        <?php $themeToggleClass = 'btn btn-link text-white p-1 fs-5 lh-1 ms-auto me-2 ms-xl-2 me-xl-0 order-xl-last'; require __DIR__ . '/partials/theme_toggle.php'; ?>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#pubNav"
                 aria-controls="pubNav" aria-expanded="false" aria-label="เปิดเมนู">
             <span class="navbar-toggler-icon"></span>

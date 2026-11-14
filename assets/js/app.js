@@ -16,8 +16,43 @@ window.TeachHub = (function () {
         return v || fallback;
     };
 
-    // ชุดสีสำหรับกราฟ (น้ำเงินกรมท่า ส้ม และสีเสริม)
-    var palette = ['#1b2a4e', '#f47b20', '#2a9d8f', '#e9c46a', '#8d5fd3', '#e76f51', '#4c8bf5', '#6c757d', '#43aa8b', '#b5838d'];
+    // ------------------------------------------------------------
+    // โหมดกลางคืน: เก็บค่าที่เลือกไว้ในเบราว์เซอร์ (ค่าเริ่มต้น = โหมดสว่าง)
+    // ------------------------------------------------------------
+    var isDark = function () { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; };
+
+    function applyTheme(dark) {
+        if (dark) {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-bs-theme');
+        }
+        document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+            b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+            var label = dark ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดกลางคืน';
+            b.title = label;
+            b.setAttribute('aria-label', label);
+        });
+    }
+
+    function bindTheme() {
+        applyTheme(isDark());
+        document.addEventListener('click', function (ev) {
+            if (!ev.target.closest('[data-theme-toggle]')) return;
+            var dark = !isDark();
+            try { localStorage.setItem('th-theme', dark ? 'dark' : 'light'); } catch (e) { /* เบราว์เซอร์ไม่อนุญาตให้เก็บค่า */ }
+            applyTheme(dark);
+            // กราฟวาดสีไว้ตอนสร้าง จึงโหลดหน้าใหม่เพื่อวาดด้วยสีของโหมดใหม่
+            if (document.querySelector('canvas')) location.reload();
+        });
+        // พิมพ์ด้วยโหมดสว่างเสมอ แล้วกลับมาโหมดเดิมหลังพิมพ์
+        var darkBeforePrint = false;
+        window.addEventListener('beforeprint', function () { darkBeforePrint = isDark(); if (darkBeforePrint) document.documentElement.removeAttribute('data-bs-theme'); });
+        window.addEventListener('afterprint', function () { if (darkBeforePrint) document.documentElement.setAttribute('data-bs-theme', 'dark'); });
+    }
+
+    // ชุดสีสำหรับกราฟ (น้ำเงินกรมท่า ส้ม และสีเสริม) สีกรมท่าจะกลืนกับพื้นมืด จึงใช้สีฟ้าอ่อนแทนในโหมดกลางคืน
+    var palette = [isDark() ? '#8fa8d8' : '#1b2a4e', '#f47b20', '#2a9d8f', '#e9c46a', '#8d5fd3', '#e76f51', '#4c8bf5', '#6c757d', '#43aa8b', '#b5838d'];
     var statusColors = { pending: '#ffc107', approved: '#198754', revision: '#dc3545', late: '#fd7e14', none: '#adb5bd' };
 
     // ------------------------------------------------------------
@@ -117,7 +152,11 @@ window.TeachHub = (function () {
         if (typeof Chart === 'undefined') return;
         Chart.defaults.font.family = "'Sarabun', sans-serif";
         Chart.defaults.font.size = 13;
-        Chart.defaults.color = '#4b5563';
+        Chart.defaults.color = isDark() ? '#cbd5e1' : '#4b5563';
+        if (isDark()) {
+            Chart.defaults.borderColor = 'rgba(203, 213, 225, .16)';
+            Chart.defaults.elements.arc.borderColor = '#1c2536';
+        }
         Chart.defaults.plugins.legend.labels.usePointStyle = true;
         Chart.defaults.maintainAspectRatio = false;
     }
@@ -320,6 +359,7 @@ window.TeachHub = (function () {
             }
         });
 
+        bindTheme();
         initDataTables();
         initChartDefaults();
         tickCountdowns();

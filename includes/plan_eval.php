@@ -126,6 +126,122 @@ function can_evaluate_plan(array $user, array $plan): bool
         && (int)$plan['department_id'] === (int)$user['department_id'];
 }
 
+/**
+ * เหตุที่ย้ายเอกสารจากหมวดแผนการจัดการเรียนรู้ไปหมวดโครงการสอนไม่ได้ (ว่าง = ย้ายได้) สิทธิ์ตรวจด้วย can_evaluate_plan
+ * - ส่งผลประเมินให้ครูแล้ว: ต้องให้ผู้ดูแลระบบลบผลก่อน (ร่างถูกลบไปพร้อมการย้าย)
+ * - วิชานี้มีโครงการสอนในรอบหรือภาคเรียนเดียวกันแล้ว: ระบบถือว่าวิชาหนึ่งมีโครงการสอนเดียวต่อภาคเรียน
+ */
+function plan_move_outline_block_reason(int $lessonPlanId): string
+{
+    if (db_value("SELECT id FROM plan_evaluations WHERE lesson_plan_id = ? AND status = 'final'", 'i', [$lessonPlanId])) {
+        return 'ส่งผลประเมินให้ครูแล้ว ต้องให้ผู้ดูแลระบบลบผลการประเมินก่อนจึงจะย้ายได้';
+    }
+    if (!lesson_doc_exists_in_term($lessonPlanId, 'outline')) {
+        return '';
+    }
+    // วิธีให้ครูส่งไฟล์แผนที่ถูกต้องขึ้นกับสถานะงาน: งานที่ผ่านแล้ว ครูส่งใหม่ไม่ได้ และเปลี่ยนผลได้เฉพาะผู้ดูแลระบบ
+    $next = [
+        'approved' => 'งานนี้ตรวจผ่านแล้ว ต้องให้ผู้ดูแลระบบเปลี่ยนผลการตรวจเป็น "ให้แก้ไข" ครูจึงจะส่งไฟล์แผนที่ถูกต้องเป็นฉบับใหม่ได้',
+        'revision' => 'งานนี้อยู่ในสถานะ "ให้แก้ไข" แล้ว ให้ครูส่งไฟล์แผนที่ถูกต้องเป็นฉบับใหม่',
+    ][db_value('SELECT status FROM lesson_plans WHERE id = ?', 'i', [$lessonPlanId])] ?? 'ให้ตรวจเป็น "ให้แก้ไข" เพื่อให้ครูส่งไฟล์แผนที่ถูกต้องแทน';
+    return 'ครูส่งโครงการสอนวิชานี้ในภาคเรียนนี้แล้ว จึงย้ายไม่ได้ ' . $next;
+}
+
+/** วิชาเดียวกันของครูคนเดียวกันมีเอกสารประเภทนี้ในรอบหรือภาคเรียนเดียวกันแล้วหรือไม่ */
+function lesson_doc_exists_in_term(int $lessonPlanId, string $docType): bool
+{
+    return (bool)db_value(
+        "SELECT o.id FROM lesson_plans p
+         JOIN submission_rounds pr ON pr.id = p.round_id
+         JOIN lesson_plans o ON o.teacher_id = p.teacher_id AND o.subject_code = p.subject_code AND o.doc_type = ? AND o.id <> p.id
+         JOIN submission_rounds orr ON orr.id = o.round_id
+         WHERE p.id = ? AND (o.round_id = p.round_id OR COALESCE(o.academic_year_id, orr.academic_year_id) = COALESCE(p.academic_year_id, pr.academic_year_id))
+         LIMIT 1",
+        'si',
+        [$docType, $lessonPlanId]
+    );
+}
+
+/** ผู้ใช้ย้ายเอกสารระหว่างหมวดได้หรือไม่: ใช้ขอบเขตเดียวกับผู้ประเมินแผน แม้เอกสารอยู่ในหมวดโครงการสอน */
+function can_move_lesson_doc(array $user, array $doc): bool
+{
+    return can_evaluate_plan($user, array_replace($doc, ['doc_type' => 'plan']));
+}
+
+/** เหตุที่ย้ายโครงการสอนกลับไปหมวดแผนการจัดการเรียนรู้ไม่ได้ (ว่าง = ย้ายได้) */
+function plan_move_plan_block_reason(int $lessonPlanId): string
+{
+    return lesson_doc_exists_in_term($lessonPlanId, 'plan')
+        ? 'ครูส่งแผนการจัดการเรียนรู้วิชานี้ในภาคเรียนนี้แล้ว จึงย้ายไม่ได้' : '';
+}
+
+/** ย้ายเอกสารไปหมวดแผนการจัดการเรียนรู้: สถานะกลับเป็นรอตรวจ (ไฟล์และประวัติการตรวจคงเดิม) */
+function plan_move_to_plan(int $lessonPlanId): void
+{
+    db_exec("UPDATE lesson_plans SET doc_type = 'plan', status = 'pending' WHERE id = ? AND doc_type = 'outline'", 'i', [$lessonPlanId]);
+}
+
+/** ย้ายเอกสารไปหมวดโครงการสอน: สถานะกลับเป็นรอตรวจ และลบร่างผลประเมิน (ไฟล์และประวัติการตรวจคงเดิม) */
+function plan_move_to_outline(int $lessonPlanId): void
+{
+    db()->begin_transaction();
+    try {
+        db_exec("DELETE FROM plan_evaluations WHERE lesson_plan_id = ? AND status = 'draft'", 'i', [$lessonPlanId]);
+        db_exec("UPDATE lesson_plans SET doc_type = 'outline', status = 'pending' WHERE id = ? AND doc_type = 'plan'", 'i', [$lessonPlanId]);
+        db()->commit();
+    } catch (Throwable $ex) {
+        db()->rollback();
+        throw $ex;
+    }
+}
+
+/** เหตุที่ลบฉบับล่าสุดของแผน/โครงการสอนไม่ได้ (ว่าง = ลบได้) */
+function lesson_doc_latest_version_block_reason(array $doc): string
+{
+    $earlier = db_value(
+        "SELECT id FROM submission_files WHERE submission_type = 'lesson_plan' AND submission_id = ? AND version < ? LIMIT 1",
+        'ii',
+        [(int)$doc['id'], (int)$doc['current_version']]
+    );
+    if (!$earlier) {
+        return 'เอกสารนี้มีฉบับเดียว หากต้องการลบให้ลบทั้งรายการ';
+    }
+    if (db_value("SELECT id FROM plan_evaluations WHERE lesson_plan_id = ? AND plan_version = ? AND status = 'final'", 'ii', [(int)$doc['id'], (int)$doc['current_version']])) {
+        return 'ส่งผลประเมินของฉบับนี้ให้ครูแล้ว ต้องลบผลการประเมินก่อนจึงจะลบฉบับนี้ได้';
+    }
+    return '';
+}
+
+/**
+ * ลบฉบับล่าสุดของแผน/โครงการสอน พร้อมผลตรวจและร่างผลประเมินของฉบับนั้น
+ * ฉบับก่อนหน้ากลับเป็นฉบับปัจจุบัน สถานะงานเป็นผลตรวจล่าสุดที่เหลือ (ไม่มี = รอตรวจ)
+ * @return int เลขฉบับปัจจุบันใหม่
+ */
+function lesson_doc_delete_latest_version(array $doc): int
+{
+    $id = (int)$doc['id'];
+    $version = (int)$doc['current_version'];
+    $files = db_all("SELECT file_dir, stored_name FROM submission_files WHERE submission_type = 'lesson_plan' AND submission_id = ? AND version = ?", 'ii', [$id, $version]);
+    db()->begin_transaction();
+    try {
+        db_exec("DELETE FROM submission_files WHERE submission_type = 'lesson_plan' AND submission_id = ? AND version = ?", 'ii', [$id, $version]);
+        db_exec("DELETE FROM reviews WHERE submission_type = 'lesson_plan' AND submission_id = ? AND version = ?", 'ii', [$id, $version]);
+        db_exec("DELETE FROM plan_evaluations WHERE lesson_plan_id = ? AND plan_version = ? AND status = 'draft'", 'ii', [$id, $version]);
+        $newVersion = (int)db_value("SELECT MAX(version) FROM submission_files WHERE submission_type = 'lesson_plan' AND submission_id = ?", 'i', [$id]);
+        $status = db_value("SELECT result FROM reviews WHERE submission_type = 'lesson_plan' AND submission_id = ? ORDER BY id DESC LIMIT 1", 'i', [$id]) ?: 'pending';
+        db_exec('UPDATE lesson_plans SET current_version = ?, status = ? WHERE id = ?', 'isi', [$newVersion, $status, $id]);
+        db()->commit();
+    } catch (Throwable $ex) {
+        db()->rollback();
+        throw $ex;
+    }
+    // ลบไฟล์จริงหลังลบข้อมูลสำเร็จ
+    foreach ($files as $f) {
+        delete_upload($f['file_dir'], $f['stored_name']);
+    }
+    return $newVersion;
+}
+
 /** ผู้ใช้ดูผลการประเมินแผนนี้ได้หรือไม่ (ครูเจ้าของแผน / ผู้ประเมินตามขอบเขต / ผู้ดูรายงาน) */
 function can_view_plan_eval(array $user, array $plan): bool
 {

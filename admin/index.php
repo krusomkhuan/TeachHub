@@ -52,6 +52,9 @@ $logs = !$canLogs ? [] : db_all(
 $pageTitle = 'แดชบอร์ดผู้ดูแลระบบ';
 $pageIcon = 'bi-speedometer2';
 $pageActions = $canUsers ? '<a href="' . e(url('admin/users.php')) . '" class="btn btn-outline-primary btn-sm"><i class="bi bi-people me-1"></i>จัดการผู้ใช้</a>' : '';
+if (admin_can($user, 'rounds')) {
+    $pageActions .= '<a href="' . e(url('admin/rounds.php')) . '" class="btn btn-accent btn-sm"><i class="bi bi-calendar-plus me-1"></i>จัดทำปฏิทินกำหนดการ (รอบส่งงาน)</a>';
+}
 require APP_ROOT . '/includes/header.php';
 ?>
 <?php require APP_ROOT . '/includes/partials/report_alert.php'; ?>

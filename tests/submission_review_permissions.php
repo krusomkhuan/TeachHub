@@ -13,7 +13,8 @@ foreach (['teaching_project', 'lesson_plan'] as $documentType) {
 $cases[] = [true, $head, array_replace($own, ['teacher_id' => 11]), 'Head reviews department colleague'];
 $cases[] = [false, $head, array_replace($own, ['teacher_id' => 11, 'department_id' => 3]), 'Head cannot review another department'];
 $cases[] = [false, $head, array_replace($own, ['_type' => 'pa']), 'Head cannot review own PA'];
-$cases[] = [false, $head, array_replace($own, ['_type' => 'research']), 'Head cannot review own research'];
+$cases[] = [true, $head, array_replace($own, ['_type' => 'research']), 'Head reviews own research'];
+$cases[] = [false, array_replace($head, ['role' => 'teacher']), array_replace($own, ['_type' => 'research']), 'Teacher cannot review own research'];
 $cases[] = [false, array_replace($head, ['role' => 'teacher']), $own, 'Teacher cannot review own plan'];
 $cases[] = [false, array_replace($head, ['department_id' => 0]), $own, 'Head needs a department'];
 $designated = array_replace($head, ['position' => reviewer_positions()['lesson_plan'][0]]);
