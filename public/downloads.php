@@ -12,7 +12,8 @@ if (!isset($categories[$cat])) {
     $cat = '';
 }
 
-$sql = 'SELECT d.id, d.title, d.description, d.category, d.original_name, d.file_size, d.download_count, d.created_at
+// d.* รวมไฟล์ที่ 2 (alt_*) ด้วยเมื่อนำเข้า update_v1.24.sql แล้ว
+$sql = 'SELECT d.*
         FROM downloads d LEFT JOIN download_categories c ON c.code = d.category
         WHERE d.is_active = 1 AND d.stored_name IS NOT NULL';
 $types = '';
@@ -26,9 +27,13 @@ if ($cat !== '') {
 $q = mb_substr(trim(get('q')), 0, 100);
 if ($q !== '') {
     $like = '%' . addcslashes($q, '%_\\') . '%';
-    $sql .= ' AND (d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ?)';
+    $sql .= ' AND (d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ?' . (downloads_alt_ready() ? ' OR d.alt_original_name LIKE ?' : '') . ')';
     $types .= 'sss';
     array_push($params, $like, $like, $like);
+    if (downloads_alt_ready()) {
+        $types .= 's';
+        $params[] = $like;
+    }
 }
 $qs = $q !== '' ? '&q=' . rawurlencode($q) : '';
 $sql .= ' ORDER BY c.sort_order, d.title';
@@ -75,25 +80,37 @@ require APP_ROOT . '/includes/public_header.php';
     <?php if ($docs): ?>
         <div class="row g-3">
             <?php foreach ($docs as $d): ?>
+                <?php $files = download_files($d); ?>
                 <div class="col-md-6 col-lg-4">
                     <div class="card h-100">
                         <div class="card-body d-flex gap-3">
-                            <i class="bi <?= e(file_icon($d['original_name'])) ?>" style="font-size:2.6rem"></i>
+                            <i class="bi <?= e(file_icon('x.' . ($files[0]['ext'] ?? ''))) ?>" style="font-size:2.6rem"></i>
                             <div class="flex-grow-1 min-w-0">
                                 <span class="badge bg-light text-dark border mb-1"><?= e($catNames[$d['category']] ?? '') ?></span>
                                 <h6 class="fw-bold mb-1"><?= e($d['title']) ?></h6>
                                 <?php if ($d['description']): ?><p class="small text-muted mb-2"><?= e($d['description']) ?></p><?php endif; ?>
                                 <div class="small text-muted">
-                                    <?= e(strtoupper(pathinfo((string)$d['original_name'], PATHINFO_EXTENSION))) ?> ·
-                                    <?= e(format_bytes((int)$d['file_size'])) ?> ·
+                                    <?php foreach ($files as $f): ?><?= e(strtoupper($f['ext'])) ?> <?= e(format_bytes($f['size'])) ?> · <?php endforeach; ?>
                                     <i class="bi bi-download"></i> <?= number_format((int)$d['download_count']) ?> ครั้ง
                                 </div>
                             </div>
                         </div>
                         <div class="card-footer bg-white border-0 pt-0 pb-3 px-3">
-                            <a href="<?= e(url('public/download.php?id=' . (int)$d['id'])) ?>" class="btn btn-accent btn-sm w-100">
-                                <i class="bi bi-download me-1"></i> ดาวน์โหลด
-                            </a>
+                            <?php if (count($files) > 1): ?>
+                                <!-- มีหลายรูปแบบ (เช่น Word + PDF): ปุ่มแยกตามชนิดไฟล์ -->
+                                <div class="d-flex gap-2">
+                                    <?php foreach ($files as $f): ?>
+                                        <a href="<?= e(url('public/download.php?id=' . (int)$d['id'] . ($f['slot'] === 2 ? '&f=2' : ''))) ?>" class="btn btn-sm flex-fill <?= $f['ext'] === 'pdf' ? 'btn-outline-danger' : 'btn-accent' ?>"
+                                           title="<?= e($f['name']) ?>">
+                                            <i class="bi <?= e(strtok(file_icon('x.' . $f['ext']), ' ')) ?> me-1"></i> <?= e(strtoupper($f['ext'])) ?>
+                                        </a>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <a href="<?= e(url('public/download.php?id=' . (int)$d['id'])) ?>" class="btn btn-accent btn-sm w-100">
+                                    <i class="bi bi-download me-1"></i> ดาวน์โหลด
+                                </a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

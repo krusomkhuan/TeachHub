@@ -3,12 +3,15 @@
  * ไฟล์: admin/downloads.php
  * จัดการเอกสารดาวน์โหลด/แบบฟอร์มต้นฉบับ (แบบฟอร์มแผนการสอน, แบบ PA, เค้าโครงวิจัย, แบบนิเทศ ฯลฯ)
  * ไฟล์เก็บใน uploads/downloads (เข้าตรงไม่ได้) และดาวน์โหลดผ่าน public/download.php
+ * เอกสารหนึ่งรายการแนบได้ 2 ไฟล์ต่างชนิดกัน เช่น แบบฟอร์ม Word (DOCX) และ PDF (ต้องนำเข้า update_v1.24.sql)
  */
 require_once __DIR__ . '/../config/config.php';
 
 $user = require_role('admin');
 $errors = [];
 $docExt = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip'];
+$altReady = downloads_alt_ready();
+$extOf = fn(?string $name) => strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
 
 if (is_post()) {
     csrf_verify();
@@ -32,13 +35,33 @@ if (is_post()) {
         if (!$old && !$hasFile) {
             $errors['file'] = 'กรุณาแนบไฟล์';
         }
-        $up = null;
+        $hasFile2 = $altReady && !empty($_FILES['file2']) && $_FILES['file2']['error'] !== UPLOAD_ERR_NO_FILE;
+        $removeFile2 = $altReady && !$hasFile2 && isset($_POST['remove_file2']);
+        // ไฟล์ที่ 2 ต้องเป็นคนละชนิดกับไฟล์หลัก (เช่น DOCX + PDF) จะได้มีปุ่มดาวน์โหลดแยกตามชนิด
+        $ext1 = $hasFile ? $extOf($_FILES['file']['name'] ?? '') : $extOf($old['stored_name'] ?? '');
+        $ext2 = $hasFile2 ? $extOf($_FILES['file2']['name'] ?? '') : ($removeFile2 ? '' : $extOf($old['alt_stored_name'] ?? ''));
+        if ($ext2 !== '' && $ext1 === $ext2) {
+            $errors[$hasFile2 ? 'file2' : 'file'] = 'ไฟล์หลักและไฟล์ที่ 2 ต้องเป็นคนละชนิดกัน (เช่น DOCX และ PDF)';
+        }
+        $up = $up2 = null;
         if (!$errors && $hasFile) {
             $up = handle_upload($_FILES['file'], 'downloads', $docExt, max_upload_bytes());
             if (!$up['ok']) {
                 $errors['file'] = $up['error'];
                 $up = null;
             }
+        }
+        if (!$errors && $hasFile2) {
+            $up2 = handle_upload($_FILES['file2'], 'downloads', $docExt, max_upload_bytes());
+            if (!$up2['ok']) {
+                $errors['file2'] = $up2['error'];
+                $up2 = null;
+            }
+        }
+        // ไฟล์หนึ่งผ่าน แต่อีกไฟล์ไม่ผ่าน: ลบไฟล์ที่เพิ่งอัปโหลดทิ้ง ไม่ให้ค้างในโฟลเดอร์
+        if ($errors && $up) {
+            delete_upload('downloads', $up['stored_name']);
+            $up = null;
         }
         if (!$errors) {
             if ($old) {
@@ -49,15 +72,25 @@ if (is_post()) {
                         'sssii', [$up['original_name'], $up['stored_name'], $up['mime'], $up['size'], $id]);
                     delete_upload('downloads', $old['stored_name']);
                 }
+                if ($up2 || $removeFile2) {
+                    db_exec('UPDATE downloads SET alt_original_name = ?, alt_stored_name = ?, alt_mime_type = ?, alt_file_size = ? WHERE id = ?',
+                        'sssii', [$up2['original_name'] ?? null, $up2['stored_name'] ?? null, $up2['mime'] ?? null, (int)($up2['size'] ?? 0), $id]);
+                    delete_upload('downloads', $old['alt_stored_name'] ?? null);
+                }
             } else {
-                db_insert(
+                $newId = db_insert(
                     'INSERT INTO downloads (title, description, category, original_name, stored_name, mime_type, file_size, is_active, created_by)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     'ssssssiii',
                     [$title, $desc, $cat, $up['original_name'], $up['stored_name'], $up['mime'], $up['size'], $active, (int)$user['id']]
                 );
+                if ($up2) {
+                    db_exec('UPDATE downloads SET alt_original_name = ?, alt_stored_name = ?, alt_mime_type = ?, alt_file_size = ? WHERE id = ?',
+                        'sssii', [$up2['original_name'], $up2['stored_name'], $up2['mime'], $up2['size'], (int)$newId]);
+                }
             }
-            log_activity('download_save', ($old ? 'แก้ไข' : 'เพิ่ม') . 'เอกสาร: ' . $title . ($up ? ' (ไฟล์ ' . $up['original_name'] . ')' : ''));
+            log_activity('download_save', ($old ? 'แก้ไข' : 'เพิ่ม') . 'เอกสาร: ' . $title . ($up ? ' (ไฟล์ ' . $up['original_name'] . ')' : '')
+                . ($up2 ? ' (ไฟล์ที่ 2 ' . $up2['original_name'] . ')' : '') . ($removeFile2 ? ' (ลบไฟล์ที่ 2)' : ''));
             flash('success', 'บันทึกเอกสาร "' . $title . '" แล้ว');
             redirect('admin/downloads.php');
         }
@@ -71,6 +104,7 @@ if (is_post()) {
     if ($action === 'delete' && $old) {
         db_exec('DELETE FROM downloads WHERE id = ?', 'i', [$id]);
         delete_upload('downloads', $old['stored_name']);
+        delete_upload('downloads', $old['alt_stored_name'] ?? null);
         log_activity('download_delete', 'ลบเอกสาร: ' . $old['title']);
         flash('success', 'ลบเอกสารแล้ว');
         redirect('admin/downloads.php');
@@ -150,14 +184,29 @@ require APP_ROOT . '/includes/header.php';
                         <label class="form-label" for="description">คำอธิบาย</label>
                         <input class="form-control" name="description" id="description" maxlength="500" value="<?= e($fv('description')) ?>">
                     </div>
-                    <div class="col-md-8">
-                        <label class="form-label" for="file">ไฟล์<?= $editing ? ' (เลือกเฉพาะเมื่อต้องการเปลี่ยนไฟล์)' : ' *' ?></label>
+                    <div class="col-md-6">
+                        <label class="form-label" for="file">ไฟล์หลัก<?= $editing ? ' (เลือกเฉพาะเมื่อต้องการเปลี่ยนไฟล์)' : ' *' ?></label>
                         <input type="file" class="form-control<?= isset($errors['file']) ? ' is-invalid' : '' ?>" name="file" id="file" accept="<?= e(implode(',', array_map(fn($x) => '.' . $x, $docExt))) ?>">
                         <div class="form-text"><?= e(strtoupper(implode(', ', $docExt))) ?> ไม่เกิน <?= e(format_bytes(max_upload_bytes())) ?>
                             <?= $editing && $editing['original_name'] ? ' · ไฟล์ปัจจุบัน: ' . e($editing['original_name']) : '' ?></div>
                         <?php if (isset($errors['file'])): ?><div class="invalid-feedback d-block"><?= e($errors['file']) ?></div><?php endif; ?>
                     </div>
-                    <div class="col-md-4 d-flex align-items-end">
+                    <?php if ($altReady): ?>
+                        <div class="col-md-6">
+                            <label class="form-label" for="file2">ไฟล์ที่ 2 (ไม่บังคับ) <span class="text-muted small">เช่น ฉบับ PDF ของแบบฟอร์ม Word</span></label>
+                            <input type="file" class="form-control<?= isset($errors['file2']) ? ' is-invalid' : '' ?>" name="file2" id="file2" accept="<?= e(implode(',', array_map(fn($x) => '.' . $x, $docExt))) ?>">
+                            <div class="form-text">ต้องเป็นคนละชนิดกับไฟล์หลัก หน้าดาวน์โหลดจะมีปุ่มแยก เช่น DOCX / PDF
+                                <?= $editing && !empty($editing['alt_original_name']) ? ' · ไฟล์ปัจจุบัน: ' . e($editing['alt_original_name']) : '' ?></div>
+                            <?php if (isset($errors['file2'])): ?><div class="invalid-feedback d-block"><?= e($errors['file2']) ?></div><?php endif; ?>
+                            <?php if ($editing && !empty($editing['alt_stored_name'])): ?>
+                                <div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="remove_file2" id="remove_file2" value="1">
+                                    <label class="form-check-label small text-danger" for="remove_file2">ลบไฟล์ที่ 2</label></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="col-md-6 small text-muted d-flex align-items-center"><i class="bi bi-info-circle me-1"></i>แนบไฟล์ที่ 2 (เช่น PDF) ได้หลังนำเข้า update_v1.24.sql</div>
+                    <?php endif; ?>
+                    <div class="col-12">
                         <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" name="is_active" id="is_active" value="1"
                                 <?= (is_post() ? isset($_POST['is_active']) : (int)($editing['is_active'] ?? 1) === 1) ? 'checked' : '' ?>><label class="form-check-label" for="is_active">เผยแพร่ในหน้าดาวน์โหลด</label></div>
                     </div>
@@ -209,7 +258,7 @@ require APP_ROOT . '/includes/header.php';
                     <tr>
                         <td><i class="bi <?= e(file_icon($r['original_name'])) ?> me-1"></i><?= e($r['title']) ?><div class="small text-muted"><?= e((string)$r['description']) ?></div></td>
                         <td class="small"><?= e(download_categories()[$r['category']] ?? '') ?></td>
-                        <td class="small"><?= e((string)$r['original_name']) ?><br><span class="text-muted"><?= e(format_bytes((int)$r['file_size'])) ?></span></td>
+                        <td class="small"><?php foreach (download_files($r) as $f): ?><div><i class="bi <?= e(file_icon('x.' . $f['ext'])) ?> me-1"></i><?= e($f['name']) ?> <span class="text-muted">· <?= e(format_bytes($f['size'])) ?></span></div><?php endforeach; ?></td>
                         <td><?= number_format((int)$r['download_count']) ?></td>
                         <td><?= $r['is_active'] ? '<span class="badge bg-success">เผยแพร่</span>' : '<span class="badge bg-secondary">ซ่อน</span>' ?></td>
                         <td class="text-end text-nowrap">

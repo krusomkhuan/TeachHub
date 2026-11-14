@@ -1400,6 +1400,35 @@ function download_categories(bool $activeOnly = false): array
     return $out;
 }
 
+/** นำเข้า update_v1.24.sql แล้วหรือยัง (เอกสารดาวน์โหลดแนบไฟล์ที่ 2 ได้ เช่น Word + PDF) */
+function downloads_alt_ready(): bool
+{
+    static $ready = null;
+    if ($ready === null) {
+        $ready = (bool)db_value("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+                                 AND TABLE_NAME = 'downloads' AND COLUMN_NAME = 'alt_stored_name' LIMIT 1");
+    }
+    return $ready;
+}
+
+/**
+ * ไฟล์ของเอกสารดาวน์โหลดหนึ่งรายการ (ไฟล์หลัก + ไฟล์ที่ 2 ถ้ามี) เรียงให้ DOCX/DOC มาก่อน PDF
+ * @return array [['slot' => 1|2, 'name' => ชื่อเดิม, 'ext' => นามสกุล, 'size' => ไบต์], ...]
+ */
+function download_files(array $doc): array
+{
+    $files = [];
+    if (!empty($doc['stored_name'])) {
+        $files[] = ['slot' => 1, 'name' => (string)$doc['original_name'], 'ext' => strtolower(pathinfo($doc['stored_name'], PATHINFO_EXTENSION)), 'size' => (int)$doc['file_size']];
+    }
+    if (!empty($doc['alt_stored_name'])) {
+        $files[] = ['slot' => 2, 'name' => (string)$doc['alt_original_name'], 'ext' => strtolower(pathinfo($doc['alt_stored_name'], PATHINFO_EXTENSION)), 'size' => (int)$doc['alt_file_size']];
+    }
+    $rank = fn(string $ext) => ['docx' => 0, 'doc' => 0, 'pdf' => 2][$ext] ?? 1;
+    usort($files, fn($a, $b) => $rank($a['ext']) <=> $rank($b['ext']) ?: $a['slot'] <=> $b['slot']);
+    return $files;
+}
+
 // =====================================================================
 // 13) สถิติสำหรับแดชบอร์ด/รายงาน
 //     $ayId = 0 หมายถึงทุกภาคเรียน, $deptId = 0 หมายถึงทุกแผนก
