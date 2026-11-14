@@ -838,7 +838,9 @@ function handle_upload(array $file, string $subdir, array $allowedExt, int $maxB
     }
 
     // ตรวจนามสกุล
-    $original = basename(str_replace('\\', '/', (string)$file['name']));
+    // ตัดส่วนโฟลเดอร์ทิ้งเอง ไม่ใช้ basename() เพราะขึ้นกับ locale ของเซิร์ฟเวอร์ อาจตัดตัวอักษรไทยหาย
+    $original = str_replace('\\', '/', (string)$file['name']);
+    $original = trim(substr($original, (int)strrpos('/' . $original, '/')));
     $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
     $allowedExt = array_map('strtolower', $allowedExt);
     if ($ext === '' || !in_array($ext, $allowedExt, true)) {
@@ -916,7 +918,20 @@ function send_file(string $subdir, string $stored, string $downloadName, bool $i
     $subdir = preg_replace('/[^a-z0-9_]/', '', strtolower($subdir));
     $path = UPLOAD_PATH . DIRECTORY_SEPARATOR . $subdir . DIRECTORY_SEPARATOR . basename($stored);
     $ext = strtolower(pathinfo($stored, PATHINFO_EXTENSION));
-    $fallback = preg_replace('/[^A-Za-z0-9._-]/', '_', $downloadName);
+    // ชื่อไฟล์ที่ผู้ใช้ได้รับ: ใช้ชื่อต้นฉบับ (รวมภาษาไทย) และต้องลงท้ายด้วยนามสกุลของไฟล์จริงเสมอ
+    $downloadName = trim(preg_replace('/[\x00-\x1F\x7F"\\\\\/:*?<>|]+/u', ' ', $downloadName) ?? '');
+    $downloadName = preg_replace('/\s+/u', ' ', $downloadName) ?? $downloadName;
+    if ($ext !== '' && !preg_match('/\.' . preg_quote($ext, '/') . '$/i', $downloadName)) {
+        $downloadName = rtrim($downloadName, '. ') . '.' . $ext;
+    }
+    if (trim(preg_replace('/\.[A-Za-z0-9]+$/', '', $downloadName)) === '') {
+        $downloadName = 'document' . ($ext !== '' ? '.' . $ext : '');
+    }
+    // ชื่อสำรองแบบ ASCII สำหรับโปรแกรมรุ่นเก่าที่ไม่รู้จัก filename* (ถ้าเป็นภาษาไทยล้วนใช้ document.นามสกุล)
+    $fallback = preg_replace('/[^A-Za-z0-9._-]+/', '_', $downloadName);
+    if (!preg_match('/[A-Za-z0-9]/', preg_replace('/\.[A-Za-z0-9]+$/', '', $fallback))) {
+        $fallback = 'document' . ($ext !== '' ? '.' . $ext : '');
+    }
     $headers = [
         'Content-Type: ' . mime_for_ext($ext),
         'Content-Disposition: ' . ($inline ? 'inline' : 'attachment')

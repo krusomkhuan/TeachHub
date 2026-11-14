@@ -21,4 +21,9 @@ if (is_logged_in()) {
     log_activity('download_file', 'ดาวน์โหลดเอกสาร: ' . $doc['title']);
 }
 
-send_file('downloads', $doc['stored_name'], $doc['original_name'] ?: ($doc['title'] . '.' . pathinfo($doc['stored_name'], PATHINFO_EXTENSION)));
+// ใช้ชื่อไฟล์ต้นฉบับที่อัปโหลด ถ้าไม่มีหรือชื่อเสีย (เหลือแต่นามสกุล) ใช้ชื่อเอกสารแทน — send_file เติมนามสกุลจริงให้เอง
+$name = trim((string)$doc['original_name']);
+if (trim((string)preg_replace('/\.[A-Za-z0-9]+$/', '', $name)) === '') {
+    $name = (string)$doc['title'];
+}
+send_file('downloads', $doc['stored_name'], $name);
