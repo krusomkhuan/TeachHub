@@ -32,3 +32,4 @@ database/pticecac_teachhub.sql
 # token ของ Google Drive (v1.18) — สร้างโดยระบบเมื่อเชื่อมต่อ ห้ามนำขึ้น Git
 config/drive_token.php
 .env
+database/local_*

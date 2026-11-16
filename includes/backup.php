@@ -49,9 +49,12 @@ function backup_kind_label(string $name): string
     return $map[strstr($name, '_', true)] ?? '-';
 }
 
-/** อ่าน manifest.json จากไฟล์ ZIP */
+/** อ่าน manifest.json จากไฟล์ ZIP (ไม่มีส่วนขยาย zip = อ่านไม่ได้ แต่ยังแสดงรายการไฟล์สำรองได้) */
 function backup_manifest(string $path): ?array
 {
+    if (!class_exists('ZipArchive')) {
+        return null;
+    }
     $zip = new ZipArchive();
     if ($zip->open($path) !== true) {
         return null;
@@ -238,6 +241,9 @@ function backup_create(bool $withFiles, string $note = '', string $prefix = 'tea
 /** ตรวจว่าเป็นไฟล์สำรองของระบบที่ใช้กู้คืนได้ */
 function backup_validate(string $path): array
 {
+    if (!class_exists('ZipArchive')) {
+        return ['ok' => false, 'error' => 'เซิร์ฟเวอร์ไม่มีส่วนขยาย PHP zip (ZipArchive) — เปิด extension=zip ใน php.ini แล้วรีสตาร์ท Apache'];
+    }
     $zip = new ZipArchive();
     if ($zip->open($path) !== true) {
         return ['ok' => false, 'error' => 'ไฟล์ไม่ใช่ ZIP หรือไฟล์เสียหาย'];
