@@ -3,7 +3,7 @@
  * ไฟล์: includes/follow_up.php
  * ข้อมูลเมนู "ติดตามการส่งงาน" (reports/follow_up.php และกล่องสรุปบนแดชบอร์ด)
  *   outline    : ครูที่ยังส่งโครงการสอนไม่ครบทุกรายวิชาที่สอน
- *   plan       : ครูที่ยังส่งแผนการจัดการเรียนรู้ไม่ครบทุกรายวิชาที่สอน (แสดงจำนวนที่ส่งแล้ว / ยังไม่ส่งเลย)
+ *   plan       : ครูที่ยังไม่ส่งแผนการจัดการเรียนรู้ (เกณฑ์: อย่างน้อย FOLLOW_UP_PLAN_REQUIRED วิชา ส่งเกินได้)
  *   review     : หัวหน้าแผนกวิชาที่ยังมีงานรอตรวจ และแผนที่ยังไม่ประเมิน
  *   no_subject : ครูที่ยังไม่บันทึก "รายวิชาที่สอน"
  *   research   : ครูที่ยังไม่ส่งเค้าโครงวิจัยในชั้นเรียน
@@ -11,12 +11,21 @@
  * "ส่งแล้ว" = มีเอกสารในภาคเรียนนั้นไม่ว่าสถานะใด (รอตรวจ / ผ่าน / ให้แก้ไข)
  */
 
+/** เกณฑ์แผนการจัดการเรียนรู้: ส่งอย่างน้อยกี่รายวิชาต่อภาคเรียน (ตรงกับ teaching_compliance) */
+const FOLLOW_UP_PLAN_REQUIRED = 1;
+
+/** ครูส่งแผนการจัดการเรียนรู้ครบตามเกณฑ์แล้วหรือไม่ */
+function follow_up_plan_done(array $t): bool
+{
+    return $t['plans'] >= min(FOLLOW_UP_PLAN_REQUIRED, max(1, $t['subjects']));
+}
+
 /** รายการรายงานในเมนู [view => [ชื่อเมนู, ไอคอน, คำอธิบาย]] */
 function follow_up_views(): array
 {
     return [
         'outline'    => ['ครูที่ยังไม่ส่งโครงการสอน', 'bi-journal-x', 'ครูที่ส่งโครงการสอนยังไม่ครบทุกรายวิชาที่สอน'],
-        'plan'       => ['ครูที่ยังไม่ส่งแผนการสอน', 'bi-file-earmark-x', 'จำนวนรายวิชาที่ส่งแผนการจัดการเรียนรู้แล้ว เทียบกับรายวิชาที่สอน'],
+        'plan'       => ['ครูที่ยังไม่ส่งแผนการสอน', 'bi-file-earmark-x', 'เกณฑ์: ส่งแผนการจัดการเรียนรู้อย่างน้อย ' . FOLLOW_UP_PLAN_REQUIRED . ' รายวิชาต่อภาคเรียน (ส่งมากกว่านี้ได้) ครูที่ส่งแล้วถือว่าส่งครบ'],
         'review'     => ['หัวหน้าแผนกที่ยังไม่ตรวจ/ประเมินแผน', 'bi-hourglass-split', 'งานที่ยังรอหัวหน้าแผนกวิชาตรวจ และแผนที่ยังไม่ได้ประเมิน'],
         'no_subject' => ['ครูที่ยังไม่ลงรายวิชาที่สอน', 'bi-book', 'ครูที่ยังไม่บันทึกรายวิชาที่สอนในภาคเรียนนี้ จึงยังส่งโครงการสอน/แผนการสอนไม่ได้'],
         'research'   => ['ครูที่ยังไม่ส่งเค้าโครงวิจัย', 'bi-search', 'ครูที่ยังไม่ส่งเค้าโครงวิจัยในชั้นเรียนในภาคเรียนนี้'],
@@ -52,7 +61,7 @@ function follow_up_teachers(int $deptId): array
 
 /**
  * สถานะโครงการสอน/แผนการสอนของครูทุกคนในขอบเขต
- * @return array แถวครู + subjects, outlines, plans, missing_outline[], missing_plan[]
+ * @return array แถวครู + subjects, outlines, plans, missing_outline[], missing_plan[], sent_plan[]
  */
 function follow_up_teaching_rows(int $ayId, int $deptId): array
 {
@@ -61,7 +70,7 @@ function follow_up_teaching_rows(int $ayId, int $deptId): array
         $subjects = teaching_subjects_with_status((int)$t['id'], $ayId);
         $t['subjects'] = count($subjects);
         $t['outlines'] = $t['plans'] = 0;
-        $t['missing_outline'] = $t['missing_plan'] = [];
+        $t['missing_outline'] = $t['missing_plan'] = $t['sent_plan'] = [];
         foreach ($subjects as $s) {
             $label = $s['subject_code'] . ' ' . $s['subject_name'];
             if ($s['outline_status'] !== null) {
@@ -71,6 +80,7 @@ function follow_up_teaching_rows(int $ayId, int $deptId): array
             }
             if ($s['plan_status'] !== null) {
                 $t['plans']++;
+                $t['sent_plan'][] = $label;
             } else {
                 $t['missing_plan'][] = $label;
             }
@@ -182,7 +192,7 @@ function follow_up_summary(int $ayId, int $deptId): array
             continue;
         }
         $sum['outline'] += $t['outlines'] < $t['subjects'] ? 1 : 0;
-        $sum['plan_none'] += $t['plans'] === 0 ? 1 : 0;
+        $sum['plan_none'] += follow_up_plan_done($t) ? 0 : 1;
     }
     foreach (follow_up_research_rows($ayId, $deptId) as $t) {
         $sum['research'] += $t['sent'] ? 0 : 1;

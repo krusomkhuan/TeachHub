@@ -14,7 +14,7 @@ if (!$fuAy) {
 $fuSum = follow_up_summary((int)$fuAy['id'], follow_up_forced_dept($user));
 $fuItems = [
     ['outline', $fuSum['outline'], 'คน', 'ส่งโครงการสอนยังไม่ครบ', 'ic-red'],
-    ['plan', $fuSum['plan_none'], 'คน', 'ยังไม่ส่งแผนการสอนเลย', 'ic-orange'],
+    ['plan', $fuSum['plan_none'], 'คน', 'ยังไม่ส่งแผนการสอน', 'ic-orange'],
     ['review', $fuSum['pending_review'], 'รายการ', 'งานรอหัวหน้าแผนกตรวจ', 'ic-yellow'],
     ['review', $fuSum['eval_left'], 'แผน', 'แผนที่ยังไม่ประเมิน', 'ic-purple'],
     ['no_subject', $fuSum['no_subject'], 'คน', 'ยังไม่ลงรายวิชาที่สอน', 'ic-blue'],

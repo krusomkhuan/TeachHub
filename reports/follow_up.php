@@ -28,49 +28,75 @@ foreach ($years as $y) {
 $forced = follow_up_forced_dept($user);
 $dept = $forced ?: get_int('dept');
 $departments = $forced ? [] : db_all('SELECT id, name FROM departments ORDER BY name');
-$showAll = get('all') === '1';
 $shortDept = fn(string $name) => preg_replace('/^แผนกวิชา/u', '', $name);
 
 // ---------- ข้อมูลตามรายงาน ----------
-$rows = [];
-$stat = [];
+// $groups: การ์ดสรุปที่กดเพื่อกรองรายการได้ [filter => [ชื่อ, ฟังก์ชันคัดแถว, สีตัวเลข (null = ไม่แสดงเป็นการ์ด)]]
+// ค่าเริ่มต้น = 'todo' (รายการที่ยังค้าง)
+$defaultFilter = 'todo';
+$sortKey = null;
 if ($view === 'outline' || $view === 'plan' || $view === 'no_subject') {
-    $all = follow_up_teaching_rows($ay, $dept);
-    $withSubjects = array_values(array_filter($all, fn($t) => $t['subjects'] > 0));
-    $noSubject = array_values(array_filter($all, fn($t) => $t['subjects'] === 0));
+    $listRows = follow_up_teaching_rows($ay, $dept);
+    $hasSubj = fn($t) => $t['subjects'] > 0;
     if ($view === 'no_subject') {
-        $rows = $noSubject;
-        $stat = ['ครูทั้งหมด' => count($all), 'ลงรายวิชาแล้ว' => count($withSubjects), 'ยังไม่ลงรายวิชา' => count($noSubject)];
+        $groups = [
+            'everyone' => ['ครูทั้งหมด', fn($t) => true, 'text-primary-th'],
+            'has'      => ['ลงรายวิชาแล้ว', $hasSubj, 'text-success'],
+            'todo'     => ['ยังไม่ลงรายวิชา', fn($t) => $t['subjects'] === 0, 'text-danger'],
+        ];
+        $sortKey = fn($t) => [$t['subjects'] > 0, $t['department_name'], $t['first_name']];
     } else {
+        // เกณฑ์: โครงการสอนต้องครบทุกวิชา · แผนการจัดการเรียนรู้อย่างน้อย FOLLOW_UP_PLAN_REQUIRED วิชา (ส่งเกินได้)
         $key = $view === 'outline' ? 'outlines' : 'plans';
-        $done = array_values(array_filter($withSubjects, fn($t) => $t[$key] === $t['subjects']));
-        $none = array_values(array_filter($withSubjects, fn($t) => $t[$key] === 0));
-        $rows = $showAll ? $withSubjects : array_values(array_filter($withSubjects, fn($t) => $t[$key] < $t['subjects']));
+        $isDone = $view === 'outline' ? fn($t) => $t['outlines'] === $t['subjects'] : 'follow_up_plan_done';
+        $groups = $view === 'outline'
+            ? [
+                'all'     => ['ครูที่ลงรายวิชาแล้ว', $hasSubj, 'text-primary-th'],
+                'done'    => ['ส่งครบทุกวิชา', fn($t) => $hasSubj($t) && $isDone($t), 'text-success'],
+                'partial' => ['ส่งบางวิชา', fn($t) => $hasSubj($t) && !$isDone($t) && $t['outlines'] > 0, 'text-warning'],
+                'none'    => ['ยังไม่ส่งเลย', fn($t) => $hasSubj($t) && $t['outlines'] === 0, 'text-danger'],
+                'todo'    => ['ยังส่งไม่ครบ', fn($t) => $hasSubj($t) && !$isDone($t), null],
+            ]
+            : [
+                'all'  => ['ครูที่ลงรายวิชาแล้ว', $hasSubj, 'text-primary-th'],
+                'done' => ['ส่งครบแล้ว', fn($t) => $hasSubj($t) && $isDone($t), 'text-success'],
+                'todo' => ['ยังไม่ส่ง', fn($t) => $hasSubj($t) && !$isDone($t), 'text-danger'],
+            ];
         // ยังไม่ส่งเลยขึ้นก่อน แล้วเรียงตามแผนก/ชื่อ
-        usort($rows, fn($a, $b) => [$a[$key] > 0, $a['department_name'], $a['first_name']] <=> [$b[$key] > 0, $b['department_name'], $b['first_name']]);
-        $stat = ['ครูที่ลงรายวิชาแล้ว' => count($withSubjects), 'ส่งครบทุกวิชา' => count($done),
-            'ส่งบางวิชา' => count($withSubjects) - count($done) - count($none), 'ยังไม่ส่งเลย' => count($none)];
+        $sortKey = fn($t) => [$t[$key] > 0, $t['department_name'], $t['first_name']];
     }
 } elseif ($view === 'research') {
-    $all = follow_up_research_rows($ay, $dept);
-    $notSent = array_values(array_filter($all, fn($t) => !$t['sent']));
-    $rows = $showAll ? $all : $notSent;
-    usort($rows, fn($a, $b) => [$a['sent'], $a['department_name'], $a['first_name']] <=> [$b['sent'], $b['department_name'], $b['first_name']]);
-    $stat = ['ครูทั้งหมด' => count($all), 'ส่งเค้าโครงแล้ว' => count($all) - count($notSent), 'ยังไม่ส่ง' => count($notSent)];
+    $listRows = follow_up_research_rows($ay, $dept);
+    $groups = [
+        'all'  => ['ครูทั้งหมด', fn($t) => true, 'text-primary-th'],
+        'done' => ['ส่งเค้าโครงแล้ว', fn($t) => $t['sent'], 'text-success'],
+        'todo' => ['ยังไม่ส่ง', fn($t) => !$t['sent'], 'text-danger'],
+    ];
+    $sortKey = fn($t) => [$t['sent'], $t['department_name'], $t['first_name']];
 } else {
-    $all = follow_up_review_rows($ay, $dept);
-    $rows = $showAll ? $all : array_values(array_filter($all, fn($d) => $d['pending'] > 0 || $d['eval_left'] > 0));
-    usort($rows, fn($a, $b) => [-$a['pending'] - $a['eval_left'], $a['department_name']] <=> [-$b['pending'] - $b['eval_left'], $b['department_name']]);
-    $stat = ['แผนกที่ยังมีงานค้าง' => count(array_filter($all, fn($d) => $d['pending'] > 0 || $d['eval_left'] > 0)),
-        'งานรอตรวจ' => array_sum(array_column($all, 'pending')),
-        'แผนยังไม่ประเมิน' => array_sum(array_column($all, 'eval_none')),
-        'ประเมินค้างเป็นร่าง' => array_sum(array_column($all, 'eval_draft'))];
+    $listRows = follow_up_review_rows($ay, $dept);
+    $groups = [
+        'all'     => ['แผนกทั้งหมด', fn($d) => true, 'text-primary-th'],
+        'todo'    => ['แผนกที่ยังมีงานค้าง', fn($d) => $d['pending'] > 0 || $d['eval_left'] > 0, 'text-danger'],
+        'pending' => ['มีงานรอตรวจ', fn($d) => $d['pending'] > 0, 'text-warning'],
+        'eval'    => ['มีแผนยังไม่ประเมิน', fn($d) => $d['eval_left'] > 0, 'text-warning'],
+        'clear'   => ['ตรวจ/ประเมินครบแล้ว', fn($d) => $d['pending'] === 0 && $d['eval_left'] === 0, 'text-success'],
+    ];
+    $sortKey = fn($d) => [-$d['pending'] - $d['eval_left'], $d['department_name']];
 }
+// ?filter= มาจากการกดการ์ด (รองรับลิงก์เดิม ?all=1 = แสดงทั้งหมด)
+$filter = get('filter') !== '' ? get('filter') : (get('all') === '1' ? (string)array_key_first($groups) : $defaultFilter);
+if (!isset($groups[$filter])) {
+    $filter = $defaultFilter;
+}
+$counts = array_map(fn($g) => count(array_filter($listRows, $g[1])), $groups);
+$rows = array_values(array_filter($listRows, $groups[$filter][1]));
+usort($rows, fn($a, $b) => $sortKey($a) <=> $sortKey($b));
+$filterLabel = $groups[$filter][0];
 
 $qs = fn(array $over) => '?' . http_build_query(array_filter(array_merge(
-    ['view' => $view, 'ay' => $ay, 'dept' => $forced ? null : ($dept ?: null), 'all' => $showAll ? '1' : null], $over
+    ['view' => $view, 'ay' => $ay, 'dept' => $forced ? null : ($dept ?: null), 'filter' => $filter === $defaultFilter ? null : $filter], $over
 ), fn($v) => $v !== null && $v !== ''));
-$statColors = ['text-primary-th', 'text-success', 'text-warning', 'text-danger'];
 
 $pageTitle = $viewTitle;
 $pageIcon = $viewIcon;
@@ -80,7 +106,7 @@ require APP_ROOT . '/includes/header.php';
 ?>
 <ul class="nav nav-pills flex-wrap gap-1 mb-3">
     <?php foreach ($views as $k => [$label, $icon]): ?>
-        <li class="nav-item"><a class="nav-link py-1 px-3 small<?= $k === $view ? ' active' : '' ?>" href="<?= e($qs(['view' => $k, 'all' => null])) ?>">
+        <li class="nav-item"><a class="nav-link py-1 px-3 small<?= $k === $view ? ' active' : '' ?>" href="<?= e($qs(['view' => $k, 'filter' => null])) ?>">
             <i class="bi <?= e($icon) ?> me-1"></i><?= e($label) ?></a></li>
     <?php endforeach; ?>
 </ul>
@@ -88,7 +114,7 @@ require APP_ROOT . '/includes/header.php';
 <div class="alert alert-light border small"><i class="bi bi-info-circle me-1 text-accent"></i><?= e($viewHint) ?>
     <?php if ($view === 'outline' || $view === 'plan'): ?>
         · นับว่า “ส่งแล้ว” เมื่อมีเอกสารของวิชานั้นในภาคเรียนนี้ ไม่ว่าจะรอตรวจ ผ่าน หรือให้แก้ไข
-        · ครูที่ยังไม่ลงรายวิชาอยู่ในรายงาน <a href="<?= e($qs(['view' => 'no_subject', 'all' => null])) ?>">ครูที่ยังไม่ลงรายวิชาที่สอน</a>
+        · ครูที่ยังไม่ลงรายวิชาอยู่ในรายงาน <a href="<?= e($qs(['view' => 'no_subject', 'filter' => null])) ?>">ครูที่ยังไม่ลงรายวิชาที่สอน</a>
     <?php elseif ($view === 'review'): ?>
         · “รอตรวจ” = โครงการสอน/แผนที่ยังไม่ได้บันทึกผลการตรวจ · “ยังไม่ประเมิน” = แผนการจัดการเรียนรู้ที่ยังไม่มีผลประเมิน (รวมที่บันทึกร่างไว้)
     <?php endif; ?>
@@ -117,44 +143,45 @@ require APP_ROOT . '/includes/header.php';
                     </select>
                 </div>
             <?php endif; ?>
-            <?php if ($view !== 'no_subject'): ?>
-                <div class="col-md-3">
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" role="switch" name="all" id="all" value="1" <?= $showAll ? 'checked' : '' ?>>
-                        <label class="form-check-label small" for="all"><?= $view === 'review' ? 'แสดงแผนกที่ไม่มีงานค้างด้วย' : 'แสดงครูที่ส่งครบแล้วด้วย' ?></label>
-                    </div>
-                </div>
-            <?php endif; ?>
+            <?php if ($filter !== $defaultFilter): ?><input type="hidden" name="filter" value="<?= e($filter) ?>"><?php endif; ?>
             <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-funnel"></i> แสดง</button></div>
         </form>
     </div>
 </div>
 
 <div class="row g-3 mb-3">
-    <?php $i = 0; foreach ($stat as $label => $n): ?>
-        <div class="col-6 col-md"><div class="card text-center h-100"><div class="card-body py-3">
-            <div class="fs-2 fw-bold <?= $statColors[min($i++, 3)] ?>"><?= number_format($n) ?></div>
-            <div class="text-muted small"><?= e($label) ?></div></div></div></div>
+    <?php foreach ($groups as $g => [$label, , $color]): if ($color === null) { continue; } ?>
+        <div class="col-6 col-md">
+            <a href="<?= e($qs(['filter' => $g === $defaultFilter ? null : $g])) ?>"
+               class="card text-center h-100 text-decoration-none fu-filter<?= $g === $filter ? ' active' : '' ?>"
+               <?= $g === $filter ? 'aria-current="true"' : '' ?> title="กดเพื่อแสดงรายการ: <?= e($label) ?>">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold <?= e($color) ?>"><?= number_format($counts[$g]) ?></div>
+                    <div class="text-muted small"><?= e($label) ?></div>
+                </div>
+            </a>
+        </div>
     <?php endforeach; ?>
 </div>
 
 <div class="card">
     <div class="card-header"><i class="bi <?= e($viewIcon) ?> me-2"></i><?= e($viewTitle) ?> · ภาคเรียน <?= e(academic_label($ayRow)) ?>
-        <span class="badge bg-secondary ms-1"><?= count($rows) ?> รายการ</span></div>
+        <span class="badge bg-secondary ms-1"><?= e($filterLabel) ?> · <?= count($rows) ?> รายการ</span>
+        <?php if ($filter !== $defaultFilter): ?><a href="<?= e($qs(['filter' => null])) ?>" class="small ms-2">กลับไปดูรายการที่ยังค้าง</a><?php endif; ?></div>
     <div class="card-body">
         <?php if (!$rows): ?>
-            <div class="empty-state"><i class="bi bi-check2-circle text-success"></i>ไม่มีรายการค้างในภาคเรียนนี้</div>
+            <div class="empty-state"><i class="bi bi-check2-circle text-success"></i><?= $filter === $defaultFilter ? 'ไม่มีรายการค้างในภาคเรียนนี้' : 'ไม่มีรายการ “' . e($filterLabel) . '”' ?></div>
         <?php else: ?>
         <div class="table-responsive">
             <?php if ($view === 'outline' || $view === 'plan'):
                 $key = $view === 'outline' ? 'outlines' : 'plans';
                 $other = $view === 'outline' ? 'plans' : 'outlines';
-                $missingKey = $view === 'outline' ? 'missing_outline' : 'missing_plan'; ?>
+                $listKey = $view === 'outline' ? 'missing_outline' : 'sent_plan'; ?>
                 <table class="table table-hover align-middle datatable" data-order="[]">
                     <thead><tr><th>#</th><th>ครู</th><th>แผนก</th><th class="text-center">วิชาที่สอน</th>
                         <th class="text-center"><?= $view === 'outline' ? 'ส่งโครงการสอน' : 'ส่งแผนการสอน' ?></th>
                         <th class="text-center"><?= $view === 'outline' ? 'ส่งแผนการสอน' : 'ส่งโครงการสอน' ?></th>
-                        <th>สถานะ</th><th>วิชาที่ยังไม่ส่ง</th></tr></thead>
+                        <th>สถานะ</th><th><?= $view === 'outline' ? 'วิชาที่ยังไม่ส่ง' : 'วิชาที่ส่งแผนแล้ว' ?></th></tr></thead>
                     <tbody>
                     <?php foreach ($rows as $n => $r): ?>
                         <tr>
@@ -162,16 +189,17 @@ require APP_ROOT . '/includes/header.php';
                             <td style="min-width: 150px"><?= e(full_name($r)) ?><?= $r['role'] === 'supervisor' ? ' <span class="badge bg-light text-dark border">หัวหน้าแผนก</span>' : '' ?></td>
                             <td class="small"><?= e($shortDept($r['department_name'])) ?></td>
                             <td class="text-center"><?= $r['subjects'] ?></td>
-                            <td class="text-center fw-semibold <?= $r[$key] === $r['subjects'] ? 'text-success' : ($r[$key] === 0 ? 'text-danger' : 'text-warning') ?>"
-                                data-order="<?= $r[$key] ?>"><?= $r[$key] ?> / <?= $r['subjects'] ?></td>
+                            <?php $ok = $isDone($r); ?>
+                            <td class="text-center fw-semibold <?= $ok ? 'text-success' : ($r[$key] === 0 ? 'text-danger' : 'text-warning') ?>"
+                                data-order="<?= $r[$key] ?>"><?= $view === 'outline' ? $r[$key] . ' / ' . $r['subjects'] : $r[$key] . ' วิชา' ?></td>
                             <td class="text-center text-muted"><?= $r[$other] ?> / <?= $r['subjects'] ?></td>
-                            <td data-order="<?= $r[$key] === 0 ? 0 : ($r[$key] < $r['subjects'] ? 1 : 2) ?>">
-                                <?php if ($r[$key] === 0): ?><span class="badge bg-danger">ยังไม่ส่งเลย</span>
-                                <?php elseif ($r[$key] < $r['subjects']): ?><span class="badge bg-warning text-dark">ส่งแล้ว <?= $r[$key] ?> วิชา</span>
-                                <?php else: ?><span class="badge bg-success">ส่งครบ</span><?php endif; ?>
+                            <td data-order="<?= $ok ? 2 : ($r[$key] === 0 ? 0 : 1) ?>">
+                                <?php if ($ok): ?><span class="badge bg-success">ส่งครบแล้ว</span>
+                                <?php elseif ($r[$key] === 0): ?><span class="badge bg-danger"><?= $view === 'outline' ? 'ยังไม่ส่งเลย' : 'ยังไม่ส่ง' ?></span>
+                                <?php else: ?><span class="badge bg-warning text-dark">ส่งแล้ว <?= $r[$key] ?> วิชา</span><?php endif; ?>
                             </td>
                             <td class="small" style="min-width: 260px">
-                                <?php foreach ($r[$missingKey] ?: ['-'] as $m): ?><div><?= e($m) ?></div><?php endforeach; ?></td>
+                                <?php foreach ($r[$listKey] ?: ['-'] as $m): ?><div><?= e($m) ?></div><?php endforeach; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -185,7 +213,8 @@ require APP_ROOT . '/includes/header.php';
                             <td class="text-muted"><?= $n + 1 ?></td>
                             <td><?= e(full_name($r)) ?><?= $r['role'] === 'supervisor' ? ' <span class="badge bg-light text-dark border">หัวหน้าแผนก</span>' : '' ?></td>
                             <td class="small"><?= e($shortDept($r['department_name'])) ?></td>
-                            <td><?php if ($view === 'no_subject'): ?><span class="badge bg-secondary">ยังไม่ลงรายวิชาที่สอน</span>
+                            <td><?php if ($view === 'no_subject' && $r['subjects'] > 0): ?><span class="badge bg-success">ลงรายวิชาแล้ว <?= $r['subjects'] ?> วิชา</span>
+                                <?php elseif ($view === 'no_subject'): ?><span class="badge bg-secondary">ยังไม่ลงรายวิชาที่สอน</span>
                                 <?php elseif ($r['sent']): ?><span class="badge bg-success">ส่งเค้าโครงแล้ว</span>
                                 <?php else: ?><span class="badge bg-danger">ยังไม่ส่งเค้าโครงวิจัย</span><?php endif; ?></td>
                         </tr>
