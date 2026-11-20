@@ -74,6 +74,7 @@ require APP_ROOT . '/includes/header.php';
         <span class="text-danger ms-2">กรุณาติดต่อผู้ดูแลระบบเพื่อกำหนดแผนกของท่าน</span>
     <?php endif; ?>
 </div>
+<?php require APP_ROOT . '/includes/partials/follow_up_summary.php'; ?>
 
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">

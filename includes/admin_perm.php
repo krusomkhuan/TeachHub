@@ -46,7 +46,7 @@ function admin_permission_groups(): array
         ],
         'กำหนดการ & รายงาน' => [
             'rounds'  => ['จัดทำปฏิทินกำหนดการ (รอบส่งงาน)', ['admin/rounds.php'], false],
-            'reports' => ['รายงานผล + เกณฑ์การส่งรายภาคเรียน', ['reports/index.php', 'reports/teaching_compliance.php', 'reports/supervision_summary.php'], false],
+            'reports' => ['รายงานผล + เกณฑ์การส่งรายภาคเรียน + ติดตามการส่งงาน', ['reports/index.php', 'reports/teaching_compliance.php', 'reports/supervision_summary.php', 'reports/follow_up.php'], false],
         ],
         'ข้อมูลพื้นฐาน' => [
             'users'          => ['จัดการผู้ใช้ (อนุมัติ/แก้ไข/รีเซ็ตรหัสผ่าน — ยกเว้นบัญชีผู้ดูแลระบบ)', ['admin/users.php', 'admin/user_edit.php'], true],
@@ -151,6 +151,7 @@ function admin_can_path(array $user, string $path): bool
         return true;
     }
     $map = admin_permission_pages();
+    $path = (string)strtok($path, '?'); // เมนูที่มี query string เช่น reports/follow_up.php?view=plan
     if (isset($map[$path])) {
         return admin_can($user, $map[$path]);
     }

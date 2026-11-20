@@ -99,6 +99,7 @@ require_once APP_ROOT . '/includes/home_visit.php';
 require_once APP_ROOT . '/includes/plan_eval.php';
 require_once APP_ROOT . '/includes/hr.php';
 require_once APP_ROOT . '/includes/presence.php';
+require_once APP_ROOT . '/includes/follow_up.php';
 
 // ส่ง header ความปลอดภัยพื้นฐาน
 if (!headers_sent()) {

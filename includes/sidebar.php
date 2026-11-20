@@ -228,6 +228,16 @@ if (can_manage_advisor($user)) {
     $roleMenu['รายงาน'][] = ['สรุปรายงานกิจกรรมโฮมรูม', 'reports/advisor_summary.php', 'bi-people'];
     $roleMenu['รายงาน'][] = ['สรุปรายงานการเยี่ยมบ้าน', 'reports/home_visit_summary.php', 'bi-house-heart'];
 }
+// ติดตามการส่งงาน: ผู้บริหาร / หัวหน้าแผนก (เฉพาะแผนกตน) / งานพัฒนาหลักสูตรฯ / admin — วางต่อจากแดชบอร์ด
+if (can_view_follow_up($user)) {
+    $followMenu = [];
+    // ใช้ชื่อตัวแปรเฉพาะ: sidebar ถูก include ภายในหน้า จึงห้ามทับตัวแปรของหน้า (เช่น $view)
+    foreach (follow_up_views() as $fuView => $fuInfo) {
+        $followMenu[] = [$fuInfo[0], 'reports/follow_up.php?view=' . $fuView, $fuInfo[1]];
+    }
+    unset($fuView, $fuInfo);
+    $roleMenu = array_slice($roleMenu, 0, 1, true) + ['ติดตามการส่งงาน' => $followMenu] + array_slice($roleMenu, 1, null, true);
+}
 // เจ้าหน้าที่ดูแลระบบ: เห็นเฉพาะเมนูที่ผู้ดูแลระบบกำหนดสิทธิ์ให้ (หน้าเองก็ตรวจสิทธิ์ซ้ำที่ require_login)
 if (is_limited_admin($user)) {
     foreach ($roleMenu as $group => $items) {
